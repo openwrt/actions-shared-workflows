@@ -1,26 +1,7 @@
 name: Build and Push prebuilt tools container
 
 on:
-  push:
-    paths:
-      - 'include/version.mk'
-      - 'tools/**'
-      - '.github/workflows/build-tools.yml'
-      - '.github/workflows/push-containers.yml'
-      - '.github/workflows/Dockerfile.tools'
-      - 'toolchain/**'
-      - '.github/workflows/build.yml'
-      - '.github/workflows/toolchain.yml'
-      - '.github/workflows/Dockerfile.toolchain'
-    branches-ignore:
-      - master
-
-permissions:
-  contents: read
-
-concurrency:
-  group: ${{ github.workflow }}
-  cancel-in-progress: true
+  workflow_call:
 
 jobs:
   determine-container-info:

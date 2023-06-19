@@ -1,33 +1,10 @@
 name: Build all core packages
 
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/build.yml'
-      - '.github/workflows/packages.yml'
-      - 'config/**'
-      - 'include/**'
-      - 'package/**'
-      - 'target/linux/generic/**'
-      - 'toolchain/**'
-  push:
-    paths:
-      - '.github/workflows/build.yml'
-      - '.github/workflows/packages.yml'
-      - 'config/**'
-      - 'include/**'
-      - 'package/**'
-      - 'target/linux/generic/**'
-      - 'toolchain/**'
-    branches-ignore:
-      - master
-
-permissions:
-  contents: read
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  workflow_call:
+    secrets:
+      s3_access_key:
+      s3_secret_key:
 
 jobs:
   build:

@@ -1,31 +1,10 @@
 name: Build Kernel
 
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/check-kernel-patches.yml'
-      - '.github/workflows/build.yml'
-      - '.github/workflows/kernel.yml'
-      - 'include/kernel*'
-      - 'package/kernel/**'
-      - 'target/linux/**'
-  push:
-    paths:
-      - '.github/workflows/check-kernel-patches.yml'
-      - '.github/workflows/build.yml'
-      - '.github/workflows/kernel.yml'
-      - 'include/kernel*'
-      - 'package/kernel/**'
-      - 'target/linux/**'
-    branches-ignore:
-      - master
-
-permissions:
-  contents: read
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  workflow_call:
+    secrets:
+      s3_access_key:
+      s3_secret_key:
 
 jobs:
   determine_targets:

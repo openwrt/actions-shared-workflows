@@ -1,11 +1,9 @@
 name: Coverity scan build
 
 on:
-  schedule:
-    - cron: '30 2 * * 6'
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  workflow_call:
+    secrets:
+      coverity_api_token:
 
 jobs:
   coverity_build:
