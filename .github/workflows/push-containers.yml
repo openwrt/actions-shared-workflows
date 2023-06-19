@@ -92,7 +92,7 @@ jobs:
           context: openwrt
           push: true
           tags: ghcr.io/${{ needs.determine-container-info.outputs.owner-lc }}/tools:${{ needs.determine-container-info.outputs.container-tag }}
-          file: openwrt/.github/workflows/Dockerfile.tools
+          file: openwrt/.github/dockerfiles/Dockerfile.tools
 
   determine-targets:
     name: Set targets
@@ -194,7 +194,7 @@ jobs:
           context: openwrt
           push: true
           tags: ghcr.io/${{ needs.determine-container-info.outputs.owner-lc }}/toolchain:${{ matrix.target }}-${{ matrix.subtarget }}-${{ needs.determine-container-info.outputs.container-tag }}
-          file: openwrt/.github/workflows/Dockerfile.toolchain
+          file: openwrt/.github/dockerfiles/Dockerfile.toolchain
           build-args: |
             OWNER_LC=${{ needs.determine-container-info.outputs.owner-lc }}
             CONTAINER_TAG=${{ needs.determine-container-info.outputs.container-tag }}
