@@ -112,7 +112,7 @@ jobs:
        fail-fast: False
        matrix:
          include: ${{fromJson(needs.determine_targets.outputs.targets_subtargets)}}
-    uses: ./.github/workflows/build.yml
+    uses: ./.github/workflows/reusable_build.yml
     with:
       container_name: toolchain
       target: ${{ matrix.target }}
@@ -131,7 +131,7 @@ jobs:
        fail-fast: False
        matrix:
          include: ${{fromJson(needs.determine_targets.outputs.targets)}}
-    uses: ./.github/workflows/check-kernel-patches.yml
+    uses: ./.github/workflows/reusable_check-kernel-patches.yml
     with:
       target: ${{ matrix.target }}
       subtarget: ${{ matrix.subtarget }}
@@ -147,7 +147,7 @@ jobs:
     secrets:
       s3_access_key: ${{ secrets.GCS_S3_ACCESS_KEY }}
       s3_secret_key: ${{ secrets.GCS_S3_SECRET_KEY }}
-    uses: ./.github/workflows/upload-file-s3.yml
+    uses: ./.github/workflows/reusable_upload-file-s3.yml
     with:
       endpoint: https://storage.googleapis.com
       bucket: openwrt-ci-cache

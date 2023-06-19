@@ -68,7 +68,7 @@ jobs:
   build-linux-buildbot:
     name: Build tools with buildbot container
     if: ${{ github.repository_owner  == 'openwrt' }}
-    uses: ./.github/workflows/build-tools.yml
+    uses: ./.github/workflows/reusable_build-tools.yml
     with:
       generate_prebuilt_artifacts: true
 
@@ -158,7 +158,7 @@ jobs:
       fail-fast: False
       matrix:
         include: ${{fromJson(needs.determine-targets.outputs.target)}}
-    uses: ./.github/workflows/build.yml
+    uses: ./.github/workflows/reusable_build.yml
     with:
       target: ${{ matrix.target }}
       subtarget: ${{ matrix.subtarget }}

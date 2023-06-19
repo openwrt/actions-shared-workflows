@@ -16,7 +16,7 @@ jobs:
       contents: read
       packages: read
       actions: write
-    uses: ./.github/workflows/build.yml
+    uses: ./.github/workflows/reusable_build.yml
     with:
       container_name: toolchain
       target: x86
