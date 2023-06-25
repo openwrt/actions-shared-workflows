@@ -67,16 +67,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
         with:
-          path: 'openwrt'
+          repository: openwrt/actions-shared-workflows
 
       - name: Download prebuilt tools from build job
         uses: actions/download-artifact@v3
         with:
           name: linux-buildbot-prebuilt-tools
-          path: openwrt
 
       - name: Extract prebuild tools
-        working-directory: openwrt
         run: tar -xf tools.tar
 
       - name: Login to GitHub Container Registry
@@ -89,10 +87,10 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v3
         with:
-          context: openwrt
+          context: .
           push: true
           tags: ghcr.io/${{ needs.determine-container-info.outputs.owner-lc }}/tools:${{ needs.determine-container-info.outputs.container-tag }}
-          file: openwrt/.github/dockerfiles/Dockerfile.tools
+          file: .github/dockerfiles/Dockerfile.tools
 
   determine-targets:
     name: Set targets
@@ -166,17 +164,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
         with:
-          path: 'openwrt'
+          repository: openwrt/actions-shared-workflows
 
       - name: Download external toolchain from build job
         uses: actions/download-artifact@v3
         with:
           name: ${{ matrix.target }}-${{ matrix.subtarget }}-external-toolchain
-          path: openwrt
 
       - name: Find external toolchain name
         id: get-toolchain-name
-        working-directory: openwrt
         run: |
           TOOLCHAIN_NAME=$(ls | grep toolchain-${{ matrix.target }}-${{ matrix.subtarget }})
           echo "toolchain-name=$TOOLCHAIN_NAME" >> $GITHUB_OUTPUT
@@ -191,10 +187,10 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v3
         with:
-          context: openwrt
+          context: .
           push: true
           tags: ghcr.io/${{ needs.determine-container-info.outputs.owner-lc }}/toolchain:${{ matrix.target }}-${{ matrix.subtarget }}-${{ needs.determine-container-info.outputs.container-tag }}
-          file: openwrt/.github/dockerfiles/Dockerfile.toolchain
+          file: .github/dockerfiles/Dockerfile.toolchain
           build-args: |
             OWNER_LC=${{ needs.determine-container-info.outputs.owner-lc }}
             CONTAINER_TAG=${{ needs.determine-container-info.outputs.container-tag }}
