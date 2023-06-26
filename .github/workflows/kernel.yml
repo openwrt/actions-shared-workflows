@@ -124,8 +124,8 @@ jobs:
        matrix:
          include: ${{fromJson(needs.determine_targets.outputs.targets_subtargets)}}
     secrets:
-      s3_access_key: ${{ secrets.GCS_S3_ACCESS_KEY }}
-      s3_secret_key: ${{ secrets.GCS_S3_SECRET_KEY }}
+      s3_access_key: ${{ secrets.s3_access_key }}
+      s3_secret_key: ${{ secrets.s3_secret_key }}
     uses: ./.github/workflows/reusable_upload-file-s3.yml
     with:
       endpoint: https://storage.googleapis.com

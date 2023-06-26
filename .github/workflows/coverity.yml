@@ -9,7 +9,7 @@ jobs:
   coverity_build:
     name: Coverity x86/64 build
     secrets:
-      coverity_api_token: ${{ secrets.COVERITY_API_TOKEN }}
+      coverity_api_token: ${{ secrets.coverity_api_token }}
     permissions:
       contents: read
       packages: read
