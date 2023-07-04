@@ -305,6 +305,12 @@ jobs:
         run: |
           echo CONFIG_TESTING_KERNEL=y >> .config
 
+      - name: Configure KERNEL_WERROR
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          echo CONFIG_KERNEL_WERROR=y >> .config
+
       - name: Configure all kernel modules
         if: inputs.build_all_kmods == true
         shell: su buildbot -c "sh -e {0}"
