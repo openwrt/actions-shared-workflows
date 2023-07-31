@@ -437,6 +437,22 @@ jobs:
         working-directory: openwrt
         run: ./scripts/diffconfig.sh
 
+      - name: Download sources
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: make -j $(nproc) download check FIXUP=1
+
+      - name: Check sources integrity
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          git diff-index --exit-code HEAD || {
+            ret=$?
+            echo "Package integrity issues, please check the output bellow or packages-hash-issues.patch from artifacts"
+            git diff | tee packages-hash-issues.patch
+            exit $ret
+          }
+
       - name: Build tools
         shell: su buildbot -c "sh -e {0}"
         working-directory: openwrt
