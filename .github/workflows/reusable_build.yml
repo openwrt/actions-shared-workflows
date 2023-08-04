@@ -239,12 +239,11 @@ jobs:
         if: inputs.use_ccache_cache == true
         working-directory: openwrt
         run: |
-          ENDPOINT=https://storage.googleapis.com
-          BUCKET=openwrt-ci-cache
+          S3_LINK=https://s3-ccache.openwrt-ci.ansuel.com
           CCACHE_TAR=ccache-${{ inputs.ccache_type }}-${{ inputs.target }}-${{ inputs.subtarget }}.tar
 
-          if curl -o /dev/null -s --head --fail $ENDPOINT/$BUCKET/$CCACHE_TAR; then
-            wget -O - $ENDPOINT/$BUCKET/$CCACHE_TAR | tar -xf -
+          if curl -o /dev/null -s --head --fail $S3_LINK/$CCACHE_TAR; then
+            wget -O - $S3_LINK/$CCACHE_TAR | tar -xf -
             echo "cache-hit=true" >> $GITHUB_OUTPUT
           fi
 
