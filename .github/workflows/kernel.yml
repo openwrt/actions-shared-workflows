@@ -3,6 +3,8 @@ name: Build Kernel
 on:
   workflow_call:
     secrets:
+      s3_endpoint:
+      s3_bucket:
       s3_access_key:
       s3_secret_key:
 
@@ -124,11 +126,11 @@ jobs:
        matrix:
          include: ${{fromJson(needs.determine_targets.outputs.targets_subtargets)}}
     secrets:
+      s3_endpoint: ${{ secrets.s3_endpoint }}
+      s3_bucket: ${{ secrets.s3_bucket }}
       s3_access_key: ${{ secrets.s3_access_key }}
       s3_secret_key: ${{ secrets.s3_secret_key }}
     uses: ./.github/workflows/reusable_upload-file-s3.yml
     with:
-      endpoint: https://storage.googleapis.com
-      bucket: openwrt-ci-cache
       download_id: ${{ matrix.target }}-${{ matrix.subtarget }}-ccache-cache
       filename: ccache-kernel-${{ matrix.target }}-${{ matrix.subtarget }}.tar

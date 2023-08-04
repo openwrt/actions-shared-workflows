@@ -3,6 +3,8 @@ name: Build all core packages
 on:
   workflow_call:
     secrets:
+      s3_endpoint:
+      s3_bucket:
       s3_access_key:
       s3_secret_key:
 
@@ -46,12 +48,12 @@ jobs:
           - target: x86
             subtarget: 64
     secrets:
+      s3_endpoint: ${{ secrets.s3_endpoint }}
+      s3_bucket: ${{ secrets.s3_bucket }}
       s3_access_key: ${{ secrets.s3_access_key }}
       s3_secret_key: ${{ secrets.s3_secret_key }}
     uses: ./.github/workflows/reusable_upload-file-s3.yml
     with:
-      endpoint: https://storage.googleapis.com
-      bucket: openwrt-ci-cache
       download_id: ${{ matrix.target }}-${{ matrix.subtarget }}-ccache-cache
       filename: ccache-packages-${{ matrix.target }}-${{ matrix.subtarget }}.tar
 
