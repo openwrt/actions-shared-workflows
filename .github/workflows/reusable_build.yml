@@ -214,7 +214,7 @@ jobs:
 
   build:
     name: Build ${{ inputs.target }}/${{ inputs.subtarget }}
-    needs: check
+    needs: [ setup_build, check ]
     runs-on: ubuntu-latest
 
     container: ghcr.io/${{ needs.setup_build.outputs.owner_lc }}/${{ needs.setup_build.outputs.container_name }}:${{ needs.setup_build.outputs.container_tag }}
