@@ -607,6 +607,10 @@ jobs:
           name: ${{ inputs.target }}-${{ inputs.subtarget }}-logs
           path: "openwrt/logs"
 
+      - name: Cleanup dl/build_dir/staging_dir to make some space
+        working-directory: openwrt
+        run: rm -rf dl build_dir staging_dir
+
       - name: Delete already present ccache cache
         if: steps.restore-ccache-cache.outputs.cache-hit == 'true' && inputs.use_ccache_cache == true  &&
           github.event_name == 'push' && steps.restore-ccache-cache-s3.outputs.cache-hit != 'true'
