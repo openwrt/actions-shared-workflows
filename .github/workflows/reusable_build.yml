@@ -225,6 +225,11 @@ jobs:
       actions: write
 
     steps:
+      - name: Checkout master directory
+        uses: actions/checkout@v3
+        with:
+          path: openwrt
+
       - name: Checkout packages feed
         if: inputs.include_feeds == true
         uses: actions/checkout@v3
