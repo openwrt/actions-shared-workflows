@@ -2,7 +2,7 @@
 
 original_exit_code="${ret:-1}"
 log_dir_path="${1:-logs}"
-context="${2:-10}"
+context="${2:-20}"
 
 show_make_build_errors() {
 	grep -slr 'make\[[[:digit:]]\+\].*Error [[:digit:]]\+$' "$log_dir_path" | while IFS= read -r log_file; do
