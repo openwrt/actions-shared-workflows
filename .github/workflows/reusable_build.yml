@@ -609,6 +609,7 @@ jobs:
 
       - name: Cleanup dl/build_dir/staging_dir to make some space
         working-directory: openwrt
+        if: github.event_name == 'push'
         run: rm -rf dl build_dir staging_dir
 
       - name: Delete already present ccache cache
