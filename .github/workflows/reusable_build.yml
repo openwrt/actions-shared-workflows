@@ -182,10 +182,17 @@ jobs:
         working-directory: openwrt
         run: make tools/tar/compile -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
 
-      - name: Download and check packages
+      - name: Download and check toolchain
+        if: inputs.build_toolchain == true
         shell: su buildbot -c "sh -e {0}"
         working-directory: openwrt
-        run: make download check FIXUP=1 -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+        run: make toolchain/download toolchain/check FIXUP=1 -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+      - name: Download and check packages
+        if: inputs.build_all_modules == true || inputs.build_all_kmods == true || inputs.build_full == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: make package/download package/check FIXUP=1 -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
 
       - name: Validate checked packages
         shell: su buildbot -c "sh -e {0}"
