@@ -147,7 +147,7 @@ jobs:
 
       - name: Determine container
         id: determine_container
-        run: echo "container=${{ steps.lower_owner.outputs.owner_lc }}/${{ steps.determine_container_name.outputs.container_name }}"
+        run: echo "container=${{ steps.lower_owner.outputs.owner_lc }}/${{ steps.determine_container_name.outputs.container_name }}" >> $GITHUB_OUTPUT
 
       - name: Determine ccache name
         id: determine_ccache_name
