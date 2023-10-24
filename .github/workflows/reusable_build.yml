@@ -74,9 +74,7 @@ jobs:
     name: Setup build ${{ inputs.target }}/${{ inputs.subtarget }}
     runs-on: ubuntu-latest
     outputs:
-      owner_lc: ${{ steps.lower_owner.outputs.owner_lc }}
-      container_tag: ${{ steps.determine_tools_container.outputs.container_tag }}
-      container_name: ${{ steps.determine_tools_container.outputs.container_name }}
+      container: ${{ steps.determine_container.outputs.container }}
 
     steps:
       - name: Checkout
@@ -123,8 +121,8 @@ jobs:
       # Get the branch or parse the tag and push dedicated tools containers
       # For local test to use the correct container for stable release testing
       # you need to use for the branch name a prefix of openwrt-[0-9][0-9].[0-9][0-9]-
-      - name: Determine tools container tag
-        id: determine_tools_container
+      - name: Determine container name
+        id: determine_container_name
         env:
           CONTAINER_TAG: ${{ steps.determine_base_branch.outputs.base_branch != 'main' && steps.determine_base_branch.outputs.base_branch || 'latest' }}
         run: |
@@ -144,8 +142,11 @@ jobs:
           fi
 
           echo "Tools container to use $CONTAINER_NAME:$CONTAINER_TAG"
-          echo "container_tag=$CONTAINER_TAG" >> $GITHUB_OUTPUT
-          echo "container_name=$CONTAINER_NAME" >> $GITHUB_OUTPUT
+          echo "container_name=$CONTAINER_NAME:$CONTAINER_TAG" >> $GITHUB_OUTPUT
+
+      - name: Determine container
+        id: determine_container
+        run: echo "container=${{ steps.lower_owner.outputs.owner_lc }}/${{ steps.determine_container_name.outputs.container_name }}"
 
   check:
     name: Check packages for ${{ inputs.target }}/${{ inputs.subtarget }}
@@ -153,7 +154,7 @@ jobs:
     if: inputs.check == true
     runs-on: ubuntu-latest
 
-    container: ghcr.io/${{ needs.setup_build.outputs.owner_lc }}/${{ needs.setup_build.outputs.container_name }}:${{ needs.setup_build.outputs.container_tag }}
+    container: ghcr.io/${{ needs.setup_build.outputs.container }}
 
     permissions:
       contents: read
@@ -244,7 +245,7 @@ jobs:
     needs: [ setup_build, check ]
     runs-on: ubuntu-latest
 
-    container: ghcr.io/${{ needs.setup_build.outputs.owner_lc }}/${{ needs.setup_build.outputs.container_name }}:${{ needs.setup_build.outputs.container_tag }}
+    container: ghcr.io/${{ needs.setup_build.outputs.container }}
 
     permissions:
       contents: read
