@@ -75,6 +75,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       container: ${{ steps.determine_container.outputs.container }}
+      ccache_name: ${{ steps.determine_ccache_name.outputs.ccache_name }}
 
     steps:
       - name: Checkout
@@ -147,6 +148,12 @@ jobs:
       - name: Determine container
         id: determine_container
         run: echo "container=${{ steps.lower_owner.outputs.owner_lc }}/${{ steps.determine_container_name.outputs.container_name }}"
+
+      - name: Determine ccache name
+        id: determine_ccache_name
+        env:
+          CCACHE_TAG: ${{ steps.determine_base_branch.outputs.base_branch != 'main' && format('-{0}', steps.determine_base_branch.outputs.base_branch) || '' }}
+        run: echo "ccache_name=ccache-${{ inputs.ccache_type }}-${{ inputs.target }}-${{ inputs.subtarget }}${{ env.CCACHE_TAG }}" >> $GITHUB_OUTPUT
 
   check:
     name: Check packages for ${{ inputs.target }}/${{ inputs.subtarget }}
@@ -346,7 +353,7 @@ jobs:
         working-directory: openwrt
         run: |
           S3_LINK=https://s3-ccache.openwrt-ci.ansuel.com
-          CCACHE_TAR=ccache-${{ inputs.ccache_type }}-${{ inputs.target }}-${{ inputs.subtarget }}.tar
+          CCACHE_TAR=${{ needs.setup_build.outputs.ccache_name }}.tar
 
           if curl -o /dev/null -s --head --fail $S3_LINK/$CCACHE_TAR; then
             wget -O - $S3_LINK/$CCACHE_TAR | tar -xf -
@@ -381,9 +388,9 @@ jobs:
         uses: actions/cache/restore@v3
         with:
           path: openwrt/.ccache
-          key: ccache-${{ inputs.ccache_type }}-${{ inputs.target }}/${{ inputs.subtarget }}-${{ hashFiles('openwrt/include/kernel-**') }}
+          key: ${{ needs.setup_build.outputs.ccache_name }}-${{ hashFiles('openwrt/include/kernel-**') }}
           restore-keys: |
-            ccache-${{ inputs.ccache_type }}-${{ inputs.target }}/${{ inputs.subtarget }}-
+            ${{ needs.setup_build.outputs.ccache_name }}-
 
       - name: Import GPG keys
         shell: su buildbot -c "sh -e {0}"
@@ -669,7 +676,7 @@ jobs:
           inputs.upload_ccache_cache == true
         shell: su buildbot -c "sh -e {0}"
         working-directory: openwrt
-        run: tar -cf ccache-${{ inputs.ccache_type }}-${{ inputs.target }}-${{ inputs.subtarget }}.tar .ccache
+        run: tar -cf ${{ needs.setup_build.outputs.ccache_name }}.tar .ccache
 
       - name: Upload ccache cache
         if: inputs.use_ccache_cache == true && github.event_name == 'push' &&
@@ -677,7 +684,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: ${{ inputs.target }}-${{ inputs.subtarget }}-ccache-cache
-          path: openwrt/ccache-${{ inputs.ccache_type }}-${{ inputs.target }}-${{ inputs.subtarget }}.tar
+          path: openwrt/${{ needs.setup_build.outputs.ccache_name }}.tar
           retention-days: 1
 
       - name: Find external toolchain name
