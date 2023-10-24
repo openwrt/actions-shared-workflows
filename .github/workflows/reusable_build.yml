@@ -94,6 +94,29 @@ jobs:
 
           echo "owner_lc=$OWNER_LC" >> $GITHUB_OUTPUT
 
+      - name: Determine base branch tag
+        id: determine_base_branch
+        run: |
+          BASE_BRANCH=main
+          if [ -n "${{ github.base_ref }}" ]; then
+            if echo "${{ github.base_ref }}" | grep -q -E '^openwrt-[0-9][0-9]\.[0-9][0-9]$'; then
+              BASE_BRANCH="${{ github.base_ref }}"
+            fi
+          elif [ ${{ github.ref_type }} == "branch" ]; then
+            if echo "${{ github.ref_name }}" | grep -q -E '^openwrt-[0-9][0-9]\.[0-9][0-9]$'; then
+              CONTAINER_TAG=${{ github.ref_name }}
+            elif echo "${{ github.ref_name }}" | grep -q -E '^openwrt-[0-9][0-9]\.[0-9][0-9]-'; then
+              BASE_BRANCH="$(echo ${{ github.ref_name }} | sed 's/^\(openwrt-[0-9][0-9]\.[0-9][0-9]\)-.*/\1/')"
+            fi
+          elif [ ${{ github.ref_type }} == "tag" ]; then
+            if echo "${{ github.ref_name }}" | grep -q -E '^v[0-9][0-9]\.[0-9][0-9]\..+'; then
+              BASE_BRANCH=openwrt-"$(echo ${{ github.ref_name }} | sed 's/^v\([0-9][0-9]\.[0-9][0-9]\)\..\+/\1/')"
+            fi
+          fi
+
+          echo "Detected base branch as $BASE_BRANCH"
+          echo "base_branch=$BASE_BRANCH" >> $GITHUB_OUTPUT
+
       # Per branch tools container tag
       # By default stick to latest
       # For official test targetting openwrt stable branch
@@ -102,24 +125,11 @@ jobs:
       # you need to use for the branch name a prefix of openwrt-[0-9][0-9].[0-9][0-9]-
       - name: Determine tools container tag
         id: determine_tools_container
+        env:
+          CONTAINER_TAG: ${{ steps.determine_base_branch.outputs.base_branch != 'main' && steps.determine_base_branch.outputs.base_branch || 'latest' }}
         run: |
           CONTAINER_NAME=${{ inputs.container_name }}
-          CONTAINER_TAG=latest
-          if [ -n "${{ github.base_ref }}" ]; then
-            if echo "${{ github.base_ref }}" | grep -q -E '^openwrt-[0-9][0-9]\.[0-9][0-9]$'; then
-              CONTAINER_TAG="${{ github.base_ref }}"
-            fi
-          elif [ ${{ github.ref_type }} == "branch" ]; then
-            if echo "${{ github.ref_name }}" | grep -q -E '^openwrt-[0-9][0-9]\.[0-9][0-9]$'; then
-              CONTAINER_TAG=${{ github.ref_name }}
-            elif echo "${{ github.ref_name }}" | grep -q -E '^openwrt-[0-9][0-9]\.[0-9][0-9]-'; then
-              CONTAINER_TAG="$(echo ${{ github.ref_name }} | sed 's/^\(openwrt-[0-9][0-9]\.[0-9][0-9]\)-.*/\1/')"
-            fi
-          elif [ ${{ github.ref_type }} == "tag" ]; then
-            if echo "${{ github.ref_name }}" | grep -q -E '^v[0-9][0-9]\.[0-9][0-9]\..+'; then
-              CONTAINER_TAG=openwrt-"$(echo ${{ github.ref_name }} | sed 's/^v\([0-9][0-9]\.[0-9][0-9]\)\..\+/\1/')"
-            fi
-          fi
+          CONTAINER_TAG=${{ env.CONTAINER_TAG }}
 
           if [ "$CONTAINER_NAME" = "toolchain" ]; then
             GHCR_TOKEN=$(echo ${{ secrets.GITHUB_TOKEN }} | base64)
