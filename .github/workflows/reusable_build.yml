@@ -4,6 +4,9 @@ on:
   workflow_call:
     secrets:
       coverity_api_token:
+    outputs:
+      ccache_tag:
+        value: ${{ jobs.setup_build.outputs.ccache_tag }}
     inputs:
       container_name:
         type: string
