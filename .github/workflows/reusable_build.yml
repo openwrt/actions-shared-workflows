@@ -75,6 +75,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       container: ${{ steps.determine_container.outputs.container }}
+      ccache_tag: ${{ steps.determine_ccache_tag.outputs.ccache_tag }}
       ccache_name: ${{ steps.determine_ccache_name.outputs.ccache_name }}
 
     steps:
@@ -149,11 +150,14 @@ jobs:
         id: determine_container
         run: echo "container=${{ steps.lower_owner.outputs.owner_lc }}/${{ steps.determine_container_name.outputs.container_name }}" >> $GITHUB_OUTPUT
 
+      - name: Determine ccache tag
+        id: determine_ccache_tag
+        if: steps.determine_base_branch.outputs.base_branch != 'main'
+        run: echo "ccache_tag=${{ format('-{0}', steps.determine_base_branch.outputs.base_branch) }}" >> $GITHUB_OUTPUT
+
       - name: Determine ccache name
         id: determine_ccache_name
-        env:
-          CCACHE_TAG: ${{ steps.determine_base_branch.outputs.base_branch != 'main' && format('-{0}', steps.determine_base_branch.outputs.base_branch) || '' }}
-        run: echo "ccache_name=ccache-${{ inputs.ccache_type }}-${{ inputs.target }}-${{ inputs.subtarget }}${{ env.CCACHE_TAG }}" >> $GITHUB_OUTPUT
+        run: echo "ccache_name=ccache-${{ inputs.ccache_type }}-${{ inputs.target }}-${{ inputs.subtarget }}${{ steps.determine_ccache_tag.outputs.ccache_tag }}" >> $GITHUB_OUTPUT
 
   check:
     name: Check packages for ${{ inputs.target }}/${{ inputs.subtarget }}
