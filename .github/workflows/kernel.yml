@@ -133,4 +133,4 @@ jobs:
     uses: ./.github/workflows/reusable_upload-file-s3.yml
     with:
       download_id: ${{ matrix.target }}-${{ matrix.subtarget }}-ccache-cache
-      filename: ccache-kernel-${{ matrix.target }}-${{ matrix.subtarget }}.tar
+      filename: ccache-kernel-${{ matrix.target }}-${{ matrix.subtarget }}${{ needs.build.outputs.ccache_tag }}.tar
