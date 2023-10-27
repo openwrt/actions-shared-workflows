@@ -477,6 +477,7 @@ jobs:
           [ ${{ inputs.ccache_type }} = 'kernel' ] && echo max_size=400M >> $SYSTEM_CCACHE_CONF
 
           echo depend_mode=true >> $SYSTEM_CCACHE_CONF
+          echo sloppiness=file_macro,locale,time_macros >> $SYSTEM_CCACHE_CONF
 
           echo CONFIG_CCACHE=y >> .config
 
