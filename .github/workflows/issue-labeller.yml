@@ -1,0 +1,212 @@
+name: Issue Labeller
+
+on:
+  workflow_call:
+
+jobs:
+  label-component:
+    name: Validate and Tag Bug Report
+    runs-on: ubuntu-latest
+
+    permissions:
+      issues: write
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Parse issue form
+        uses: stefanbuck/github-issue-parser@v3
+        id: issue-parser
+        with:
+          template-path: .github/ISSUE_TEMPLATE/bug-report.yml
+
+      - name: Validate Release
+        id: check_release
+        env:
+          RELEASE: ${{ steps.issue-parser.outputs.issueparser_release }}
+        run: |
+          # Make sure this is a real release following pattern r[0-9]-[0-9a-z]
+          [ -z "$(echo ${{ env.RELEASE }} | grep -Po '^SNAPSHOT$|^[0-9]+\.[0-9]+\.[0-9](-rc[0-9]+)*$')" ] && echo "invalid_release=true" >> "$GITHUB_OUTPUT" && exit 0
+
+          release=${{ env.RELEASE }}
+          # With release we need to add v for tag verification
+          [ -n "$(echo ${{ env.RELEASE }} | grep -Po '^[0-9]+\.[0-9]+\.[0-9](-rc[0-9]+)*$')" ] && release=v${{ env.RELEASE }}
+
+          # Check if this release exist or is something downstream
+          [ $release != "SNAPSHOT" ] && ! git show-ref --tags $release --quiet && echo "invalid_release=true" >> "$GITHUB_OUTPUT" && exit 0
+
+          tag_name=${{ env.RELEASE }}
+          [ $tag_name != "SNAPSHOT" ] && tag_name=release/$(echo ${{ env.RELEASE }} | grep -Po '^[0-9]+\.[0-9]+')
+
+          echo "release=$release"  >> "$GITHUB_OUTPUT"
+          echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
+          echo "Detected Release $release"
+
+      - name: Checkout Bug Release
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          show-progress: false
+          ref: ${{ steps.check_release.outputs.release != 'SNAPSHOT' && steps.check_release.outputs.release || '' }}
+
+      - name: Validate Version
+        id: check_version
+        env:
+          VERSION: ${{ steps.issue-parser.outputs.issueparser_version }}
+        run: |
+          # Make sure this is a real version following pattern r[0-9]-[0-9a-z]
+          [ -z "$(echo ${{ env.VERSION }} | grep -Po '^r[0-9]+-[0-9a-z]+$')" ] && echo "invalid_version=true" >> "$GITHUB_OUTPUT" && exit 0
+
+          hash=$(./scripts/getver.sh ${{ env.VERSION }})
+
+          # Check if this version exist or is something downstream
+          [ $hash == "unknown" ] && echo "invalid_version=true" >> "$GITHUB_OUTPUT" && exit 0
+
+          echo "Detected Hash $hash"
+
+      - name: Validate Target/Subtarget
+        id: check_target
+        env:
+          TARGET_SUBTARGET: ${{ steps.issue-parser.outputs.issueparser_target }}
+        run: |
+          [ -z "$(echo ${{ env.TARGET_SUBTARGET }} | grep -Po '^[a-zA-Z0-9]+/[a-zA-Z0-9]+$')" ] && echo "invalid_target=true" >> "$GITHUB_OUTPUT" && exit 0
+
+          TARGET=$(echo ${{ env.TARGET_SUBTARGET }} | cut -d "/" -f 1)
+          SUBTARGET=$(echo ${{ env.TARGET_SUBTARGET }} | cut -d "/" -f 2)
+
+          # Check if Target exist
+          [ ! -d target/linux/$TARGET ] && echo "invalid_target=true" >> "$GITHUB_OUTPUT" && exit 0
+
+          SUBTARGETS="$(TOPDIR=$(pwd) make -C target/linux/$TARGET --no-print-directory DUMP=1 TARGET_BUILD=1 val.SUBTARGETS V=s 2>/dev/null)"
+
+          [ -z "$(echo "$SUBTARGETS" | grep "$SUBTARGET")" ] && echo "invalid_target=true" >> "$GITHUB_OUTPUT" && exit 0
+
+          echo "tag_name=target/$TARGET" >> "$GITHUB_OUTPUT"
+
+          echo "Detected target $TARGET is valid"
+          echo "Detected subtarget $SUBTARGET is valid"
+
+      - name: Validate Device
+        id: check_device
+        if: steps.check_target.outputs.invalid_target != 'true'
+        env:
+          TARGET_SUBTARGET: ${{ steps.issue-parser.outputs.issueparser_target }}
+          DEVICE: ${{ steps.issue-parser.outputs.issueparser_device }}
+        run: |
+          DEVICES=$(./scripts/dump-target-info.pl devices ${{ env.TARGET_SUBTARGET }} 2>/dev/null)
+
+          [ -z "$(echo $DEVICES | grep -P '(?<!\()\Q${{ env.DEVICE }}\E(?!\))')" ] && echo "invalid_device=true" >> "$GITHUB_OUTPUT" && exit 0
+
+          echo "Detected model ${{ env.DEVICE }} is valid"
+
+      - name: Post Invalid Version
+        if: steps.check_version.outputs.invalid_version == 'true'
+        uses: octokit/request-action@v2.x
+        with:
+          route: POST /repos/{repository}/issues/{issue_number}/comments
+          body: ${{ toJSON(env.REQUEST_BODY) }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_REPOSITORY: ${{ github.repository }}
+          INPUT_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REQUEST_BODY: |
+            Invalid Version reported. `${{ steps.issue-parser.outputs.issueparser_version }}`
+            Is this from a clean repository?
+
+      - name: Post Invalid Release
+        if: steps.check_release.outputs.invalid_release == 'true'
+        uses: octokit/request-action@v2.x
+        with:
+          route: POST /repos/{repository}/issues/{issue_number}/comments
+          body: ${{ toJSON(env.REQUEST_BODY) }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_REPOSITORY: ${{ github.repository }}
+          INPUT_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REQUEST_BODY: |
+            Invalid Release reported. `${{ steps.issue-parser.outputs.issueparser_release }}`
+            Is this from a clean repository?
+
+      - name: Post Invalid Target/Subtarget
+        if: steps.check_target.outputs.invalid_target == 'true'
+        uses: octokit/request-action@v2.x
+        with:
+          route: POST /repos/{repository}/issues/{issue_number}/comments
+          body: ${{ toJSON(env.REQUEST_BODY) }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_REPOSITORY: ${{ github.repository }}
+          INPUT_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REQUEST_BODY: |
+            Invalid Target/Subtarget reported. `${{ steps.issue-parser.outputs.issueparser_target }}`
+            Is this from a supported device?
+
+      - name: Post Invalid Model
+        if: steps.check_device.outputs.invalid_device == 'true'
+        uses: octokit/request-action@v2.x
+        with:
+          route: POST /repos/{repository}/issues/{issue_number}/comments
+          body: ${{ toJSON(env.REQUEST_BODY) }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_REPOSITORY: ${{ github.repository }}
+          INPUT_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REQUEST_BODY: |
+            Invalid Device reported. `${{ steps.issue-parser.outputs.issueparser_device }}`
+            Is this a supported model?
+
+      - name: Add Release tag
+        if: steps.check_version.outputs.invalid_version != 'true' && steps.check_release.outputs.invalid_release != 'true' && steps.check_target.outputs.invalid_target != 'true' && steps.check_device.outputs.invalid_device != 'true'
+        uses: octokit/request-action@v2.x
+        with:
+          route: POST /repos/{repository}/issues/{issue_number}/labels
+          labels: ${{ env.REQUEST_BODY }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_REPOSITORY: ${{ github.repository }}
+          INPUT_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REQUEST_BODY: |
+            ["${{ steps.check_release.outputs.tag_name }}"]
+
+      - name: Add Target/Subtarget tag
+        if: steps.check_version.outputs.invalid_version != 'true' && steps.check_release.outputs.invalid_release != 'true' && steps.check_target.outputs.invalid_target != 'true' && steps.check_device.outputs.invalid_device != 'true'
+        uses: octokit/request-action@v2.x
+        with:
+          route: POST /repos/{repository}/issues/{issue_number}/labels
+          labels: ${{ env.REQUEST_BODY }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_REPOSITORY: ${{ github.repository }}
+          INPUT_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REQUEST_BODY: |
+            ["${{ steps.check_target.outputs.tag_name }}"]
+
+      - name: Add tag Image Kind
+        if: steps.check_version.outputs.invalid_version != 'true' && steps.check_release.outputs.invalid_release != 'true' && steps.check_target.outputs.invalid_target != 'true' && steps.check_device.outputs.invalid_device != 'true'
+        uses: octokit/request-action@v2.x
+        with:
+          route: POST /repos/{repository}/issues/{issue_number}/labels
+          labels: ${{ env.REQUEST_BODY }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_REPOSITORY: ${{ github.repository }}
+          INPUT_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REQUEST_BODY: |
+            ["${{ steps.issue-parser.outputs.issueparser_image_kind == 'Official downloaded image' && 'Official Image' || 'Self Built Image' }}"]
+
+      - name: Add Invalid Tag
+        if: steps.check_version.outputs.invalid_version == 'true' || steps.check_release.outputs.invalid_release == 'true' || steps.check_target.outputs.invalid_target == 'true' || steps.check_device.outputs.invalid_device == 'true'
+        uses: octokit/request-action@v2.x
+        with:
+          route: POST /repos/{repository}/issues/{issue_number}/labels
+          labels: ${{ env.REQUEST_BODY }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_REPOSITORY: ${{ github.repository }}
+          INPUT_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REQUEST_BODY: |
+            ["invalid"]
