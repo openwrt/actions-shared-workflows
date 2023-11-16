@@ -96,8 +96,16 @@ jobs:
         env:
           TARGET_SUBTARGET: ${{ steps.issue-parser.outputs.issueparser_target }}
           DEVICE: ${{ steps.issue-parser.outputs.issueparser_device }}
+          BRANCH: ${{ steps.check_release.outputs.release != 'SNAPSHOT' && steps.check_release.outputs.release || 'main' }}
+          DUMP_TARGET_INFO_SCRIPT: scripts/dump-target-info.pl
         run: |
-          DEVICES=$(./scripts/dump-target-info.pl devices ${{ env.TARGET_SUBTARGET }} 2>/dev/null)
+          BRANCH=${{ env.BRANCH }}
+          [ $BRANCH != "main" ] && BRANCH=openwrt-$(echo ${{ env.BRANCH }} | sed 's/^v\([0-9]\+\.[0-9]\+\)\.[0-9]\(-rc[0-9]\+\)*$/\1/')
+
+          # Checkout upstream version of the DUMP_TARGET_INFO_SCRIPT
+          git checkout -q origin/$BRANCH ${{ env.DUMP_TARGET_INFO_SCRIPT }}
+
+          DEVICES=$(./${{ env.DUMP_TARGET_INFO_SCRIPT }} devices ${{ env.TARGET_SUBTARGET }} 2>/dev/null)
 
           [ -z "$(echo $DEVICES | grep -P '(?<!\()\Q${{ env.DEVICE }}\E(?!\))')" ] && echo "invalid_device=true" >> "$GITHUB_OUTPUT" && exit 0
 
