@@ -153,22 +153,24 @@ jobs:
             Invalid Target/Subtarget reported. `${{ steps.issue-parser.outputs.issueparser_target }}`
             Is this from a supported device?
 
-      - name: Post Invalid Model
-        if: steps.check_device.outputs.invalid_device == 'true'
-        uses: octokit/request-action@v2.x
-        with:
-          route: POST /repos/{repository}/issues/{issue_number}/comments
-          body: ${{ toJSON(env.REQUEST_BODY) }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          INPUT_REPOSITORY: ${{ github.repository }}
-          INPUT_ISSUE_NUMBER: ${{ github.event.issue.number }}
-          REQUEST_BODY: |
-            Invalid Device reported. `${{ steps.issue-parser.outputs.issueparser_device }}`
-            Is this a supported model?
+      # Disable for now. It seems there is an inconsistency with model name set in DT
+      # and model name set in image.mk
+      # - name: Post Invalid Model
+      #   if: steps.check_device.outputs.invalid_device == 'true'
+      #   uses: octokit/request-action@v2.x
+      #   with:
+      #     route: POST /repos/{repository}/issues/{issue_number}/comments
+      #     body: ${{ toJSON(env.REQUEST_BODY) }}
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #     INPUT_REPOSITORY: ${{ github.repository }}
+      #     INPUT_ISSUE_NUMBER: ${{ github.event.issue.number }}
+      #     REQUEST_BODY: |
+      #       Invalid Device reported. `${{ steps.issue-parser.outputs.issueparser_device }}`
+      #       Is this a supported model?
 
       - name: Add Release tag
-        if: steps.check_version.outputs.invalid_version != 'true' && steps.check_release.outputs.invalid_release != 'true' && steps.check_target.outputs.invalid_target != 'true' && steps.check_device.outputs.invalid_device != 'true'
+        if: steps.check_version.outputs.invalid_version != 'true' && steps.check_release.outputs.invalid_release != 'true' && steps.check_target.outputs.invalid_target != 'true'
         uses: octokit/request-action@v2.x
         with:
           route: POST /repos/{repository}/issues/{issue_number}/labels
@@ -181,7 +183,7 @@ jobs:
             ["${{ steps.check_release.outputs.tag_name }}"]
 
       - name: Add Target/Subtarget tag
-        if: steps.check_version.outputs.invalid_version != 'true' && steps.check_release.outputs.invalid_release != 'true' && steps.check_target.outputs.invalid_target != 'true' && steps.check_device.outputs.invalid_device != 'true'
+        if: steps.check_version.outputs.invalid_version != 'true' && steps.check_release.outputs.invalid_release != 'true' && steps.check_target.outputs.invalid_target != 'true'
         uses: octokit/request-action@v2.x
         with:
           route: POST /repos/{repository}/issues/{issue_number}/labels
@@ -194,7 +196,7 @@ jobs:
             ["${{ steps.check_target.outputs.tag_name }}"]
 
       - name: Add tag Image Kind
-        if: steps.check_version.outputs.invalid_version != 'true' && steps.check_release.outputs.invalid_release != 'true' && steps.check_target.outputs.invalid_target != 'true' && steps.check_device.outputs.invalid_device != 'true'
+        if: steps.check_version.outputs.invalid_version != 'true' && steps.check_release.outputs.invalid_release != 'true' && steps.check_target.outputs.invalid_target != 'true'
         uses: octokit/request-action@v2.x
         with:
           route: POST /repos/{repository}/issues/{issue_number}/labels
@@ -206,8 +208,21 @@ jobs:
           REQUEST_BODY: |
             ["${{ steps.issue-parser.outputs.issueparser_image_kind == 'Official downloaded image' && 'Official Image' || 'Self Built Image' }}"]
 
+      - name: Add tag Supported Device
+        if: steps.check_version.outputs.invalid_version != 'true' && steps.check_release.outputs.invalid_release != 'true' && steps.check_target.outputs.invalid_target != 'true' && steps.check_device.outputs.invalid_device != 'true'
+        uses: octokit/request-action@v2.x
+        with:
+          route: POST /repos/{repository}/issues/{issue_number}/labels
+          labels: ${{ env.REQUEST_BODY }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_REPOSITORY: ${{ github.repository }}
+          INPUT_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REQUEST_BODY: |
+            ["Supported Device"]
+
       - name: Add Invalid Tag
-        if: steps.check_version.outputs.invalid_version == 'true' || steps.check_release.outputs.invalid_release == 'true' || steps.check_target.outputs.invalid_target == 'true' || steps.check_device.outputs.invalid_device == 'true'
+        if: steps.check_version.outputs.invalid_version == 'true' || steps.check_release.outputs.invalid_release == 'true' || steps.check_target.outputs.invalid_target == 'true'
         uses: octokit/request-action@v2.x
         with:
           route: POST /repos/{repository}/issues/{issue_number}/labels
