@@ -30,7 +30,7 @@ jobs:
           RELEASE: ${{ steps.issue-parser.outputs.issueparser_release }}
         run: |
           # Make sure this is a real release following pattern r[0-9]-[0-9a-z]
-          [ -z "$(echo ${{ env.RELEASE }} | grep -Po '^SNAPSHOT$|^[0-9]+\.[0-9]+\.[0-9](-rc[0-9]+)*$')" ] && echo "invalid_release=true" >> "$GITHUB_OUTPUT" && exit 0
+          [ -z "$(echo "${{ env.RELEASE }}" | grep -Po '^SNAPSHOT$|^[0-9]+\.[0-9]+\.[0-9](-rc[0-9]+)*$')" ] && echo "invalid_release=true" >> "$GITHUB_OUTPUT" && exit 0
 
           release=${{ env.RELEASE }}
           # With release we need to add v for tag verification
@@ -59,7 +59,7 @@ jobs:
           VERSION: ${{ steps.issue-parser.outputs.issueparser_version }}
         run: |
           # Make sure this is a real version following pattern r[0-9]-[0-9a-z]
-          [ -z "$(echo ${{ env.VERSION }} | grep -Po '^r[0-9]+-[0-9a-z]+$')" ] && echo "invalid_version=true" >> "$GITHUB_OUTPUT" && exit 0
+          [ -z "$(echo "${{ env.VERSION }}" | grep -Po '^r[0-9]+-[0-9a-z]+$')" ] && echo "invalid_version=true" >> "$GITHUB_OUTPUT" && exit 0
 
           hash=$(./scripts/getver.sh ${{ env.VERSION }})
 
@@ -73,7 +73,7 @@ jobs:
         env:
           TARGET_SUBTARGET: ${{ steps.issue-parser.outputs.issueparser_target }}
         run: |
-          [ -z "$(echo ${{ env.TARGET_SUBTARGET }} | grep -Po '^[a-zA-Z0-9]+/[a-zA-Z0-9]+$')" ] && echo "invalid_target=true" >> "$GITHUB_OUTPUT" && exit 0
+          [ -z "$(echo "${{ env.TARGET_SUBTARGET }}" | grep -Po '^[a-zA-Z0-9]+/[a-zA-Z0-9]+$')" ] && echo "invalid_target=true" >> "$GITHUB_OUTPUT" && exit 0
 
           TARGET=$(echo ${{ env.TARGET_SUBTARGET }} | cut -d "/" -f 1)
           SUBTARGET=$(echo ${{ env.TARGET_SUBTARGET }} | cut -d "/" -f 2)
@@ -107,7 +107,7 @@ jobs:
 
           DEVICES=$(./${{ env.DUMP_TARGET_INFO_SCRIPT }} devices ${{ env.TARGET_SUBTARGET }} 2>/dev/null)
 
-          [ -z "$(echo $DEVICES | grep -P '(?<!\()\Q${{ env.DEVICE }}\E(?!\))')" ] && echo "invalid_device=true" >> "$GITHUB_OUTPUT" && exit 0
+          [ -z "$(echo $DEVICES | grep -P '(?<!\()\Q"${{ env.DEVICE }}"\E(?!\))')" ] && echo "invalid_device=true" >> "$GITHUB_OUTPUT" && exit 0
 
           echo "Detected model ${{ env.DEVICE }} is valid"
 
