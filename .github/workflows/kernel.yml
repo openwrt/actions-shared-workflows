@@ -36,6 +36,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            include
+            scripts/dump-target-info.pl
+            target/linux
 
       - name: Set targets
         id: find_targets
