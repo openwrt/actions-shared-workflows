@@ -68,6 +68,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: openwrt/actions-shared-workflows
+          sparse-checkout: .github/dockerfiles/Dockerfile.tools
+          sparse-checkout-cone-mode: false
 
       - name: Download prebuilt tools from build job
         uses: actions/download-artifact@v3
@@ -165,6 +167,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: openwrt/actions-shared-workflows
+          sparse-checkout: .github/dockerfiles/Dockerfile.toolchain
+          sparse-checkout-cone-mode: false
 
       - name: Download external toolchain from build job
         uses: actions/download-artifact@v3
