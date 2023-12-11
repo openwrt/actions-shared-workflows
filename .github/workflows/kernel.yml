@@ -76,6 +76,7 @@ jobs:
           FIRST=1
           for TARGET_SUBTARGET in $TARGETS_SUBTARGETS; do
             TARGET_KERNEL_VER="$(echo "$TARGET_KERNELS" | grep $TARGET_SUBTARGET | cut -d " " -f 2)"
+            TARGET_TESTING_KERNEL_VER="$(echo "$TARGET_KERNELS" | grep $TARGET_SUBTARGET | cut -d " " -f 3)"
 
             TARGET=$(echo $TARGET_SUBTARGET | cut -d "/" -f 1)
             SUBTARGET=$(echo $TARGET_SUBTARGET | cut -d "/" -f 2)
@@ -91,6 +92,14 @@ jobs:
                 JSON_TARGETS_SUBTARGETS="$JSON_TARGETS_SUBTARGETS""$TUPLE"
                 FIRST=0
               fi
+
+              # Also test testing kernel version if kernel version is affected
+              if [ -n "$TARGET_TESTING_KERNEL_VER" ] && echo "${{ env.AFFECTED_KERNEL_VERSIONS }}" | grep -q "$TARGET_TESTING_KERNEL_VER"; then
+                TUPLE='{"target":"'"$TARGET"'","subtarget":"'"$SUBTARGET"'","testing":"'"$TARGET_TESTING_KERNEL_VER"'"}'
+                [[ $FIRST -ne 1 ]] && JSON_TARGETS_SUBTARGETS="$JSON_TARGETS_SUBTARGETS"','
+                JSON_TARGETS_SUBTARGETS="$JSON_TARGETS_SUBTARGETS""$TUPLE"
+                FIRST=0
+              fi
             fi
           done
           JSON_TARGETS_SUBTARGETS="$JSON_TARGETS_SUBTARGETS"']'
@@ -99,6 +108,7 @@ jobs:
           FIRST=1
           for TARGET_SUBTARGET in $TARGETS; do
             TARGET_KERNEL_VER="$(echo "$TARGET_KERNELS" | grep $TARGET_SUBTARGET | cut -d " " -f 2)"
+            TARGET_TESTING_KERNEL_VER="$(echo "$TARGET_KERNELS" | grep $TARGET_SUBTARGET | cut -d " " -f 3)"
 
             TARGET=$(echo $TARGET_SUBTARGET | cut -d "/" -f 1)
             SUBTARGET=$(echo $TARGET_SUBTARGET | cut -d "/" -f 2)
@@ -110,6 +120,14 @@ jobs:
               # test target if kernel version is affected
               if echo "${{ env.AFFECTED_KERNEL_VERSIONS }}" | grep -q "$TARGET_KERNEL_VER"; then
                 TUPLE='{"target":"'"$TARGET"'","subtarget":"'"$SUBTARGET"'"}'
+                [[ $FIRST -ne 1 ]] && JSON_TARGETS="$JSON_TARGETS"','
+                JSON_TARGETS="$JSON_TARGETS""$TUPLE"
+                FIRST=0
+              fi
+
+              # Also test testing kernel version if kernel version is affected
+              if [ -n "$TARGET_TESTING_KERNEL_VER" ] && echo "${{ env.AFFECTED_KERNEL_VERSIONS }}" | grep -q "$TARGET_TESTING_KERNEL_VER"; then
+                TUPLE='{"target":"'"$TARGET"'","subtarget":"'"$SUBTARGET"'","testing":"'"$TARGET_TESTING_KERNEL_VER"'"}'
                 [[ $FIRST -ne 1 ]] && JSON_TARGETS="$JSON_TARGETS"','
                 JSON_TARGETS="$JSON_TARGETS""$TUPLE"
                 FIRST=0
@@ -173,6 +191,7 @@ jobs:
       container_name: toolchain
       target: ${{ matrix.target }}
       subtarget: ${{ matrix.subtarget }}
+      testing: ${{ matrix.testing != '' }}
       build_kernel: true
       build_all_kmods: true
       upload_ccache_cache: ${{ github.repository_owner == 'openwrt' }}
@@ -192,6 +211,7 @@ jobs:
     with:
       target: ${{ matrix.target }}
       subtarget: ${{ matrix.subtarget }}
+      testing: ${{ matrix.testing != '' }}
 
   upload-ccache-cache-in-s3:
     if: github.event_name == 'push' && github.repository_owner == 'openwrt'
