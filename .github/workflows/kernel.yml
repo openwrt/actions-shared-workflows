@@ -47,8 +47,9 @@ jobs:
         run: |
           CHANGED_FILES="$(echo ${{ needs.determine_changed_files.outputs.all_changed_files }} | tr ' ' '\n')"
 
-          # Extract from changed files list pattern of patches-[0-9]+.[0-9]+ and compose list of [0-9]+.[0-9]+
-          AFFECTED_KERNEL_VERSIONS_LIST="$(echo $CHANGED_FILES | grep -oP "patches-[0-9]+\.[0-9]+" | uniq | sed 's/patches-//')"
+          # Extract from changed files list pattern of (patches|backport|hack|pending|files|kernel|config)-[0-9]+.[0-9]+ and compose list of [0-9]+.[0-9]+
+          AFFECTED_KERNEL_VERSIONS_LIST="$(echo $CHANGED_FILES | grep -oP "(patches|backport|hack|pending|files|kernel|config)-[0-9]+\.[0-9]+" | uniq | \
+                                           sed -E 's/(patches|backport|hack|pending|files|kernel|config)-//' | uniq)"
 
           echo "affected_kernel_versions="$AFFECTED_KERNEL_VERSIONS_LIST"" >> $GITHUB_OUTPUT
 
