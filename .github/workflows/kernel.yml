@@ -87,7 +87,8 @@ jobs:
               echo "$CHANGED_FILES" | grep -q $TARGET; then
 
               # test target if kernel version is affected
-              if echo "${{ env.AFFECTED_KERNEL_VERSIONS }}" | grep -q "$TARGET_KERNEL_VER"; then
+              # If AFFECTED_KERNEL_VERSIONS is empty fallback to simple testing (case of changed files)
+              if [ -z "${{ env.AFFECTED_KERNEL_VERSIONS }}" ] || echo "${{ env.AFFECTED_KERNEL_VERSIONS }}" | grep -q "$TARGET_KERNEL_VER"; then
                 TUPLE='{"target":"'"$TARGET"'","subtarget":"'"$SUBTARGET"'"}'
                 [[ $FIRST -ne 1 ]] && JSON_TARGETS_SUBTARGETS="$JSON_TARGETS_SUBTARGETS"','
                 JSON_TARGETS_SUBTARGETS="$JSON_TARGETS_SUBTARGETS""$TUPLE"
@@ -119,7 +120,8 @@ jobs:
               echo "$CHANGED_FILES" | grep -q $TARGET; then
 
               # test target if kernel version is affected
-              if echo "${{ env.AFFECTED_KERNEL_VERSIONS }}" | grep -q "$TARGET_KERNEL_VER"; then
+              # If AFFECTED_KERNEL_VERSIONS is empty fallback to simple testing (case of changed files)
+              if [ -z "${{ env.AFFECTED_KERNEL_VERSIONS }}" ] || echo "${{ env.AFFECTED_KERNEL_VERSIONS }}" | grep -q "$TARGET_KERNEL_VER"; then
                 TUPLE='{"target":"'"$TARGET"'","subtarget":"'"$SUBTARGET"'"}'
                 [[ $FIRST -ne 1 ]] && JSON_TARGETS="$JSON_TARGETS"','
                 JSON_TARGETS="$JSON_TARGETS""$TUPLE"
