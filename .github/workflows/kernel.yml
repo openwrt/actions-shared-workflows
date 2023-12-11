@@ -42,14 +42,27 @@ jobs:
             scripts/dump-target-info.pl
             target/linux
 
-      - name: Set targets
-        id: find_targets
+      - name: Determine Affected Kernel Versions
+        id: determine_affected_kernel_versions
         run: |
-          ALL_TARGETS="$(perl ./scripts/dump-target-info.pl targets 2>/dev/null)"
           CHANGED_FILES="$(echo ${{ needs.determine_changed_files.outputs.all_changed_files }} | tr ' ' '\n')"
 
-          TARGETS_SUBTARGETS="$(echo "$ALL_TARGETS" | sort -u -t '/' -k1 | awk '{ print $1 }')"
-          TARGETS="$(echo "$ALL_TARGETS" | sort -u -t '/' -k1,1 | awk '{ print $1 }')"
+          # Extract from changed files list pattern of patches-[0-9]+.[0-9]+ and compose list of [0-9]+.[0-9]+
+          AFFECTED_KERNEL_VERSIONS_LIST="$(echo $CHANGED_FILES | grep -oP "patches-[0-9]+\.[0-9]+" | uniq | sed 's/patches-//')"
+
+          echo "affected_kernel_versions="$AFFECTED_KERNEL_VERSIONS_LIST"" >> $GITHUB_OUTPUT
+
+      - name: Set targets
+        id: find_targets
+        env:
+          AFFECTED_KERNEL_VERSIONS: ${{ steps.determine_affected_kernel_versions.outputs.affected_kernel_versions }}
+        run: |
+          ALL_TARGETS="$(perl ./scripts/dump-target-info.pl targets 2>/dev/null)"
+          TARGET_KERNELS="$(perl ./scripts/dump-target-info.pl kernels 2>/dev/null)"
+          CHANGED_FILES="$(echo ${{ needs.determine_changed_files.outputs.all_changed_files }} | tr ' ' '\n')"
+
+          TARGETS_SUBTARGETS="$(echo "$ALL_TARGETS" | sort -u -t '/' -k1 | cut -d " " -f 1)"
+          TARGETS="$(echo "$ALL_TARGETS" | sort -u -t '/' -k1,1 | cut -d " " -f 1)"
 
           # On testing non-specific target, skip testing each subtarget if we are testing pr
           if [ ${{ github.event_name }} != 'push' ]; then
@@ -61,28 +74,46 @@ jobs:
 
           JSON_TARGETS_SUBTARGETS='['
           FIRST=1
-          for TARGET in $TARGETS_SUBTARGETS; do
+          for TARGET_SUBTARGET in $TARGETS_SUBTARGETS; do
+            TARGET_KERNEL_VER="$(echo "$TARGET_KERNELS" | grep $TARGET_SUBTARGET | cut -d " " -f 2)"
+
+            TARGET=$(echo $TARGET_SUBTARGET | cut -d "/" -f 1)
+            SUBTARGET=$(echo $TARGET_SUBTARGET | cut -d "/" -f 2)
+
             if echo "$CHANGED_FILES" | grep -v -q target/linux ||
               echo "$CHANGED_FILES" | grep -q target/linux/generic ||
-              echo "$CHANGED_FILES" | grep -q $(echo $TARGET | cut -d "/" -f 1); then
-              TUPLE='{"target":"'"$(echo $TARGET | cut -d "/" -f 1)"'","subtarget":"'"$(echo $TARGET | cut -d "/" -f 2)"'"}'
-              [[ $FIRST -ne 1 ]] && JSON_TARGETS_SUBTARGETS="$JSON_TARGETS_SUBTARGETS"','
-              JSON_TARGETS_SUBTARGETS="$JSON_TARGETS_SUBTARGETS""$TUPLE"
-              FIRST=0
+              echo "$CHANGED_FILES" | grep -q $TARGET; then
+
+              # test target if kernel version is affected
+              if echo "${{ env.AFFECTED_KERNEL_VERSIONS }}" | grep -q "$TARGET_KERNEL_VER"; then
+                TUPLE='{"target":"'"$TARGET"'","subtarget":"'"$SUBTARGET"'"}'
+                [[ $FIRST -ne 1 ]] && JSON_TARGETS_SUBTARGETS="$JSON_TARGETS_SUBTARGETS"','
+                JSON_TARGETS_SUBTARGETS="$JSON_TARGETS_SUBTARGETS""$TUPLE"
+                FIRST=0
+              fi
             fi
           done
           JSON_TARGETS_SUBTARGETS="$JSON_TARGETS_SUBTARGETS"']'
 
           JSON_TARGETS='['
           FIRST=1
-          for TARGET in $TARGETS; do
+          for TARGET_SUBTARGET in $TARGETS; do
+            TARGET_KERNEL_VER="$(echo "$TARGET_KERNELS" | grep $TARGET_SUBTARGET | cut -d " " -f 2)"
+
+            TARGET=$(echo $TARGET_SUBTARGET | cut -d "/" -f 1)
+            SUBTARGET=$(echo $TARGET_SUBTARGET | cut -d "/" -f 2)
+
             if echo "$CHANGED_FILES" | grep -v -q target/linux ||
               echo "$CHANGED_FILES" | grep -q target/linux/generic ||
-              echo "$CHANGED_FILES" | grep -q $(echo $TARGET | cut -d "/" -f 1); then
-              TUPLE='{"target":"'"$(echo $TARGET | cut -d "/" -f 1)"'","subtarget":"'"$(echo $TARGET | cut -d "/" -f 2)"'"}'
-              [[ $FIRST -ne 1 ]] && JSON_TARGETS="$JSON_TARGETS"','
-              JSON_TARGETS="$JSON_TARGETS""$TUPLE"
-              FIRST=0
+              echo "$CHANGED_FILES" | grep -q $TARGET; then
+
+              # test target if kernel version is affected
+              if echo "${{ env.AFFECTED_KERNEL_VERSIONS }}" | grep -q "$TARGET_KERNEL_VER"; then
+                TUPLE='{"target":"'"$TARGET"'","subtarget":"'"$SUBTARGET"'"}'
+                [[ $FIRST -ne 1 ]] && JSON_TARGETS="$JSON_TARGETS"','
+                JSON_TARGETS="$JSON_TARGETS""$TUPLE"
+                FIRST=0
+              fi
             fi
           done
           JSON_TARGETS="$JSON_TARGETS"']'
