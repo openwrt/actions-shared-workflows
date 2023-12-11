@@ -98,9 +98,37 @@ jobs:
           echo "targets_subtargets=$JSON_TARGETS_SUBTARGETS" >> $GITHUB_OUTPUT
           echo "targets=$JSON_TARGETS" >> $GITHUB_OUTPUT
 
+  determine_changed_packages:
+    name: Determine Changed Packages
+    needs: determine_changed_files
+    runs-on: ubuntu-latest
+    outputs:
+      changed_packages: ${{ steps.get_packages.outputs.changed_packages }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            package
+
+      - name: Checkout shared workflows tools
+        uses: actions/checkout@v4
+        with:
+          repository: openwrt/actions-shared-workflows
+          path: shared-workflows
+          sparse-checkout: .github/scripts/get_changed_packages.pl
+
+      - name: Determine changed packages
+        id: get_packages
+        run: |
+          CHANGED_PACKAGES="$(./shared-workflows/.github/scripts/get_changed_packages.pl "${{ needs.determine_changed_files.outputs.all_changed_files }}")"
+
+          echo "changed_packages="$CHANGED_PACKAGES"" >> $GITHUB_OUTPUT
+
   build:
     name: Build Kernel with external toolchain
-    needs: determine_targets
+    needs: [ determine_targets, determine_changed_packages ]
     permissions:
       contents: read
       packages: read
@@ -117,6 +145,7 @@ jobs:
       build_kernel: true
       build_all_kmods: true
       upload_ccache_cache: ${{ github.repository_owner == 'openwrt' }}
+      check_packages_list: ${{ needs.determine_changed_packages.outputs.changed_packages }}
 
   check-kernel-patches:
     name: Check Kernel patches

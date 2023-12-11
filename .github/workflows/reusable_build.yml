@@ -68,6 +68,8 @@ on:
       check:
         type: boolean
         default: true
+      check_packages_list:
+        type: string
 
 permissions:
   contents: read
@@ -227,7 +229,16 @@ jobs:
         if: inputs.build_all_modules == true || inputs.build_all_kmods == true || inputs.build_full == true
         shell: su buildbot -c "sh -e {0}"
         working-directory: openwrt
-        run: make package/download package/check FIXUP=1 -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+        run: |
+          # With push events or check_packages_list set to all check all packages
+          if [ "${{ github.event_name }}" = "push" ] || [ "${{ inputs.check_packages_list }}" = "all" ]; then
+            make package/download package/check FIXUP=1 -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+          # With every other event check only changed packages (if provided)
+          elif [ -n "${{ inputs.check_packages_list }}" ]; then
+            for package in ${{ inputs.check_packages_list }}; do
+              make package/$package/download package/$package/check FIXUP=1 -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+            done
+          fi
 
       - name: Validate checked packages
         shell: su buildbot -c "sh -e {0}"
