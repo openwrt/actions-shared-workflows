@@ -167,7 +167,7 @@ jobs:
   check:
     name: Check packages for ${{ inputs.target }}/${{ inputs.subtarget }}
     needs: setup_build
-    if: inputs.check == true
+    if: inputs.check == true && ( github.event_name == 'push' || inputs.check_packages_list != '' )
     runs-on: ubuntu-latest
 
     container: ghcr.io/${{ needs.setup_build.outputs.container }}
@@ -267,7 +267,7 @@ jobs:
 
   build:
     name: Build ${{ inputs.target }}/${{ inputs.subtarget }}
-    needs: [ setup_build, check ]
+    needs: setup_build
     runs-on: ubuntu-latest
 
     container: ghcr.io/${{ needs.setup_build.outputs.container }}
