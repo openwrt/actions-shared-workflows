@@ -26,7 +26,7 @@ sub scan_dir
 	my @files = readdir(DIR);
 	closedir(DIR);
 	foreach my $file (@files) {
-		next if $file eq '.' or $file eq '..';
+		next if $file eq '.' or $file eq '..' or $file eq 'src';
 		my $path = "$dir/$file";
 		if (-d $path) {
 			scan_dir("$path", $depth + 1);
