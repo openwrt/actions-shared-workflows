@@ -72,7 +72,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Download prebuilt tools from build job
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: linux-buildbot-prebuilt-tools
 
@@ -171,7 +171,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Download external toolchain from build job
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ${{ matrix.target }}-${{ matrix.subtarget }}-external-toolchain
 

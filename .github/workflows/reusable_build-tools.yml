@@ -69,7 +69,7 @@ jobs:
 
       - name: Upload fixed Packages
         if: failure()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: packages-fixed
           path: openwrt/packages-fixed
@@ -111,14 +111,14 @@ jobs:
 
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: linux-buildbot-logs
           path: openwrt/logs
 
       - name: Upload config
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: linux-buildbot-config
           path: openwrt/.config
@@ -131,7 +131,7 @@ jobs:
 
       - name: Upload prebuilt tools
         if: inputs.generate_prebuilt_artifacts == true
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: linux-buildbot-prebuilt-tools
           path: openwrt/tools.tar

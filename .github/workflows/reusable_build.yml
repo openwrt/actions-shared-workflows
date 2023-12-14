@@ -262,7 +262,7 @@ jobs:
 
       - name: Upload fixed Packages
         if: failure()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: packages-fixed
           path: openwrt/packages-fixed
@@ -666,7 +666,7 @@ jobs:
 
       - name: Upload logs
         if: failure()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.target }}-${{ inputs.subtarget }}-logs
           path: "openwrt/logs"
@@ -705,7 +705,7 @@ jobs:
       - name: Upload ccache cache
         if: inputs.use_ccache_cache == true && github.event_name == 'push' &&
           inputs.upload_ccache_cache == true
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.target }}-${{ inputs.subtarget }}-ccache-cache
           path: openwrt/${{ needs.setup_build.outputs.ccache_name }}.tar
@@ -721,7 +721,7 @@ jobs:
 
       - name: Upload prebuilt toolchain
         if: inputs.upload_external_toolchain == true
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.target }}-${{ inputs.subtarget }}-external-toolchain
           path: openwrt/bin/targets/${{ inputs.target }}/${{ inputs.subtarget }}/${{ steps.get-toolchain-name.outputs.toolchain-name }}
