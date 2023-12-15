@@ -100,6 +100,6 @@ jobs:
       s3_secret_key: ${{ secrets.ccache_s3_secret_key }}
     uses: ./.github/workflows/reusable_upload-file-s3.yml
     with:
-      download_id: ${{ matrix.target }}-${{ matrix.subtarget }}-ccache-cache
-      filename: ccache-packages-${{ matrix.target }}-${{ matrix.subtarget }}${{ needs.build.outputs.ccache_tag }}.tar
+      download_id: ${{ matrix.target }}-${{ matrix.subtarget }}${{ matrix.testing != '' && '-testing' || '' }}-ccache-cache
+      filename: ccache-packages-${{ matrix.target }}-${{ matrix.subtarget }}${{ inputs.testing == true && '-testing' || '' }}${{ needs.build.outputs.ccache_tag }}.tar
 

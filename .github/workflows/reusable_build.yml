@@ -162,7 +162,7 @@ jobs:
 
       - name: Determine ccache name
         id: determine_ccache_name
-        run: echo "ccache_name=ccache-${{ inputs.ccache_type }}-${{ inputs.target }}-${{ inputs.subtarget }}${{ steps.determine_ccache_tag.outputs.ccache_tag }}" >> $GITHUB_OUTPUT
+        run: echo "ccache_name=ccache-${{ inputs.ccache_type }}-${{ inputs.target }}-${{ inputs.subtarget }}${{ inputs.testing == true && '-testing' || '' }}${{ steps.determine_ccache_tag.outputs.ccache_tag }}" >> $GITHUB_OUTPUT
 
   check:
     name: Check packages for ${{ inputs.target }}/${{ inputs.subtarget }}
@@ -705,7 +705,7 @@ jobs:
           inputs.upload_ccache_cache == true
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ inputs.target }}-${{ inputs.subtarget }}-ccache-cache
+          name: ${{ inputs.target }}-${{ inputs.subtarget }}${{ inputs.testing == true && '-testing' || '' }}-ccache-cache
           path: openwrt/${{ needs.setup_build.outputs.ccache_name }}.tar
           retention-days: 1
 
