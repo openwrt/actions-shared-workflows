@@ -157,10 +157,8 @@ jobs:
 
       - name: Determine ccache tag
         id: determine_ccache_tag
-        env:
-          CCACHE_TESTING_TAG: ${{ inputs.testing == true && '-testing' || '' }}
-          CCACHE_BRANCH_TAG: ${{ steps.determine_base_branch.outputs.base_branch != 'main' && format('-{0}', steps.determine_base_branch.outputs.base_branch) || '' }}
-        run: echo "ccache_tag=${{ env.CCACHE_TESTING_TAG }}${{ env.CCACHE_BRANCH_TAG }}" >> $GITHUB_OUTPUT
+        if: steps.determine_base_branch.outputs.base_branch != 'main'
+        run: echo "ccache_tag=${{ format('-{0}', steps.determine_base_branch.outputs.base_branch) }}" >> $GITHUB_OUTPUT
 
       - name: Determine ccache name
         id: determine_ccache_name
