@@ -232,4 +232,4 @@ jobs:
     uses: ./.github/workflows/reusable_upload-file-s3.yml
     with:
       download_id: ${{ matrix.target }}-${{ matrix.subtarget }}${{ matrix.testing != '' && '-testing' || '' }}-ccache-cache
-      filename: ccache-kernel-${{ matrix.target }}-${{ matrix.subtarget }}${{ inputs.testing == true && '-testing' || '' }}${{ needs.build.outputs.ccache_tag }}.tar
+      filename: ccache-kernel-${{ matrix.target }}-${{ matrix.subtarget }}${{ matrix.testing != '' && '-testing' || '' }}${{ needs.build.outputs.ccache_tag }}.tar
