@@ -53,3 +53,4 @@ jobs:
       target: ${{ matrix.target }}
       subtarget: ${{ matrix.subtarget }}
       build_toolchain: true
+      build_bpf_toolchain: true
