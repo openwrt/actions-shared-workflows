@@ -1,10 +1,7 @@
 name: Test Formalities
 
 on:
-  pull_request:
-
-permissions:
-  contents: read
+  workflow_call:
 
 jobs:
   build:
