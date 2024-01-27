@@ -403,7 +403,7 @@ jobs:
       - name: Restore ccache cache
         id: restore-ccache-cache
         if: inputs.use_ccache_cache == true && steps.restore-ccache-cache-s3.outputs.cache-hit != 'true'
-        uses: actions/cache/restore@v3
+        uses: actions/cache/restore@v4
         with:
           path: openwrt/.ccache
           key: ${{ needs.setup_build.outputs.ccache_name }}-${{ hashFiles('openwrt/include/kernel-**') }}
@@ -688,7 +688,7 @@ jobs:
       - name: Save ccache cache
         if: inputs.use_ccache_cache == true && github.event_name == 'push' &&
           steps.restore-ccache-cache-s3.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v3
+        uses: actions/cache/save@v4
         with:
           path: openwrt/.ccache
           key: ${{ steps.restore-ccache-cache.outputs.cache-primary-key }}
