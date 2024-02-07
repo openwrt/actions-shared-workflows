@@ -31,6 +31,8 @@ on:
         type: boolean
       build_all_kmods:
         type: boolean
+      build_dtb:
+        type: boolean
       build_all_boards:
         type: boolean
       use_openwrt_container:
@@ -598,6 +600,12 @@ jobs:
         shell: su buildbot -c "sh -e {0}"
         working-directory: openwrt
         run: make package/linux/compile -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+      - name: Build DTBs
+        if: inputs.build_dtb == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: make target/linux/dtb -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
 
       - name: Build everything
         if: inputs.build_full == true

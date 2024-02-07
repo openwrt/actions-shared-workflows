@@ -108,6 +108,7 @@ jobs:
       testing: ${{ matrix.testing != '' && true }}
       build_kernel: true
       build_all_kmods: true
+      build_dtb: true
 
   check-kernel-patches:
     name: Check Kernel patches

@@ -164,6 +164,7 @@ jobs:
       testing: ${{ matrix.testing != '' }}
       build_kernel: true
       build_all_kmods: true
+      build_dtb: true
       upload_ccache_cache: ${{ github.repository_owner == 'openwrt' }}
       check_packages_list: ${{ needs.determine_changed_packages.outputs.changed_packages }}
 
