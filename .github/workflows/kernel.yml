@@ -55,7 +55,7 @@ jobs:
 
           # On testing non-specific target, skip testing each subtarget if we are testing pr
           if [ ${{ github.event_name }} != 'push' ]; then
-            if echo "$CHANGED_FILES" | grep -v -q target/linux ||
+            if echo "$CHANGED_FILES" | grep -v -q -P ^target/linux/.*/ ||
               echo "$CHANGED_FILES" | grep -q target/linux/generic; then
               TARGETS_SUBTARGETS=$TARGETS
             fi
@@ -70,7 +70,7 @@ jobs:
             TARGET=$(echo $TARGET_SUBTARGET | cut -d "/" -f 1)
             SUBTARGET=$(echo $TARGET_SUBTARGET | cut -d "/" -f 2)
 
-            if echo "$CHANGED_FILES" | grep -v -q target/linux ||
+            if echo "$CHANGED_FILES" | grep -v -q -P ^target/linux/.*/ ||
               echo "$CHANGED_FILES" | grep -q target/linux/generic ||
               echo "$CHANGED_FILES" | grep -q $TARGET; then
 
@@ -103,7 +103,7 @@ jobs:
             TARGET=$(echo $TARGET_SUBTARGET | cut -d "/" -f 1)
             SUBTARGET=$(echo $TARGET_SUBTARGET | cut -d "/" -f 2)
 
-            if echo "$CHANGED_FILES" | grep -v -q target/linux ||
+            if echo "$CHANGED_FILES" | grep -v -q -P ^target/linux/.*/ ||
               echo "$CHANGED_FILES" | grep -q target/linux/generic ||
               echo "$CHANGED_FILES" | grep -q $TARGET; then
 
