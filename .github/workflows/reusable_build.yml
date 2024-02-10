@@ -605,7 +605,14 @@ jobs:
         if: inputs.build_dtb == true
         shell: su buildbot -c "sh -e {0}"
         working-directory: openwrt
-        run: make target/linux/dtb -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+        run: |
+          # Check if special dtb makefile target is available
+          # For this to correctly work, a .config is required but this is already done by
+          # previous steps
+          TOPDIR=$(pwd) make -C target/linux dtb -q >/dev/null 2>/dev/null || ret=$?
+          [ $ret = 2 ] && exit 0
+
+          make target/linux/dtb -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
 
       - name: Build everything
         if: inputs.build_full == true
