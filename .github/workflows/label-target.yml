@@ -35,6 +35,8 @@ jobs:
       target: ${{ needs.set_target.outputs.target }}
       subtarget: ${{ needs.set_target.outputs.subtarget }}
       build_full: true
+      build_ib_sdk: true
+      build_bpf_toolchain: true
       build_all_kmods: true
       build_all_boards: true
       build_all_modules: true
