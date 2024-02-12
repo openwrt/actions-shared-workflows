@@ -50,7 +50,9 @@ jobs:
 
       - name: Make prereq
         working-directory: ${{ env.WORKPATH }}/openwrt
-        run: make defconfig
+        run: |
+          echo CONFIG_SDK=y >> .config
+          make defconfig
 
       - name: Build tools MacOS
         working-directory: ${{ env.WORKPATH }}/openwrt
