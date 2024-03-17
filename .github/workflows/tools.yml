@@ -6,7 +6,7 @@ on:
 jobs:
   build-macos-latest:
     name: Build tools with macos latest
-    runs-on: macos-latest
+    runs-on: macos-14
 
     steps:
       - name: Checkout
@@ -40,11 +40,11 @@ jobs:
             echo "/bin" >> "$GITHUB_PATH"
             echo "/sbin/Library/Apple/usr/bin" >> "$GITHUB_PATH"
             echo "/usr/bin" >> "$GITHUB_PATH"
-            echo "/usr/local/bin" >> "$GITHUB_PATH"
-            echo "/usr/local/opt/coreutils/bin" >> "$GITHUB_PATH"
-            echo "/usr/local/opt/findutils/libexec/gnubin" >> "$GITHUB_PATH"
-            echo "/usr/local/opt/gnu-getopt/bin" >> "$GITHUB_PATH"
-            echo "/usr/local/opt/make/libexec/gnubin" >> "$GITHUB_PATH"
+            echo "/opt/homebrew/bin" >> "$GITHUB_PATH"
+            echo "/opt/homebrew/opt/coreutils/bin" >> "$GITHUB_PATH"
+            echo "/opt/homebrew/opt/findutils/libexec/gnubin" >> "$GITHUB_PATH"
+            echo "/opt/homebrew/opt/gnu-getopt/bin" >> "$GITHUB_PATH"
+            echo "/opt/homebrew/opt/make/libexec/gnubin" >> "$GITHUB_PATH"
             echo "/usr/sbin" >> "$GITHUB_PATH"
 
       - name: Make prereq
