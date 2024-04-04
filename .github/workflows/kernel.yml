@@ -71,7 +71,7 @@ jobs:
             SUBTARGET=$(echo $TARGET_SUBTARGET | cut -d "/" -f 2)
 
             if echo "$CHANGED_FILES" | grep -q target/linux/generic ||
-              echo "$CHANGED_FILES" | grep -q "target/linux/$TARGET"; then
+              echo "$CHANGED_FILES" | grep -q "$TARGET"; then
 
               # test target if kernel version is affected
               # If AFFECTED_KERNEL_VERSIONS is empty fallback to simple testing (case of changed files)
@@ -103,7 +103,7 @@ jobs:
             SUBTARGET=$(echo $TARGET_SUBTARGET | cut -d "/" -f 2)
 
             if echo "$CHANGED_FILES" | grep -q target/linux/generic ||
-              echo "$CHANGED_FILES" | grep -q "target/linux/$TARGET"; then
+              echo "$CHANGED_FILES" | grep -q "$TARGET"; then
 
               # test target if kernel version is affected
               # If AFFECTED_KERNEL_VERSIONS is empty fallback to simple testing (case of changed files)
