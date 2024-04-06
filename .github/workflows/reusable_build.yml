@@ -264,7 +264,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: packages-fixed
+          name: ${{ inputs.target }}-${{ inputs.subtarget }}${{ inputs.testing == true && '-testing' || '' }}-packages-fixed
           path: openwrt/packages-fixed
 
   build:
