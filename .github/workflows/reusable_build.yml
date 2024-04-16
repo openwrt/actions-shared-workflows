@@ -78,7 +78,7 @@ permissions:
 
 jobs:
   setup_build:
-    name: Setup build ${{ inputs.target }}/${{ inputs.subtarget }}
+    name: Set up build ${{ inputs.target }}/${{ inputs.subtarget }}
     runs-on: ubuntu-latest
     outputs:
       container: ${{ steps.determine_container.outputs.container }}
