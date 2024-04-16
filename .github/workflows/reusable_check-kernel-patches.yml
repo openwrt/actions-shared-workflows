@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   setup_build:
-    name: Setup build
+    name: Set up build
     runs-on: ubuntu-latest
     outputs:
       owner_lc: ${{ steps.lower_owner.outputs.owner_lc }}
