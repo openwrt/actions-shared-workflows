@@ -4,8 +4,38 @@ on:
   workflow_call:
 
 jobs:
-  label-component:
+  check-type:
+    name: Parse Issue type
+    runs-on: ubuntu-latest
+
+    outputs:
+      issue_type: ${{ steps.parse_labels.outputs.type }}
+
+    steps:
+      - name: Parse label from event
+        id: parse_labels
+        env:
+          ISSUE_LABELS: ${{ toJSON(github.event.issue.labels) }}
+        run: |
+          labels="$(echo "$ISSUE_LABELS" | jq '.[] | .name' | tr -d '"')"
+
+          # Exit if nothing to triage
+          echo "$labels" | grep -q "to-triage" || exit 0
+
+          for label in $labels; do
+            if [ $label = "to-triage" ] || [ $label = "bug" ]; then
+              continue
+            fi
+
+            # Stop at the first kind
+            echo "type=$label" >> $GITHUB_OUTPUT
+            break
+          done
+
+  triage-bug-report:
     name: Validate and Tag Bug Report
+    needs: check-type
+    if: needs.check-type.outputs.issue_type == 'bug-report'
     runs-on: ubuntu-latest
 
     permissions:
@@ -233,3 +263,32 @@ jobs:
           INPUT_ISSUE_NUMBER: ${{ github.event.issue.number }}
           REQUEST_BODY: |
             ["invalid"]
+
+  remove-labels:
+    name: Remove Issue Labels
+    needs: [ check-type, triage-bug-report ]
+    runs-on: ubuntu-latest
+
+    permissions:
+      issues: write
+
+    steps:
+      - name: Remove tag to-triage
+        uses: octokit/request-action@v2.x
+        with:
+          route: DELETE /repos/{repository}/issues/{issue_number}/labels/{issue_label}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_REPOSITORY: ${{ github.repository }}
+          INPUT_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          INPUT_ISSUE_LABEL: to-triage
+
+      - name: Remove tag issue type
+        uses: octokit/request-action@v2.x
+        with:
+          route: DELETE /repos/{repository}/issues/{issue_number}/labels/{issue_label}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_REPOSITORY: ${{ github.repository }}
+          INPUT_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          INPUT_ISSUE_LABEL: ${{ needs.check-type.outputs.issue_type }}
