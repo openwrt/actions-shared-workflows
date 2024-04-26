@@ -49,7 +49,7 @@ jobs:
           show-progress: false
 
       - name: Parse issue form
-        uses: stefanbuck/github-issue-parser@v3
+        uses: Ansuel/github-issue-parser@v3
         id: issue-parser
         with:
           template-path: .github/ISSUE_TEMPLATE/bug-report.yml
