@@ -50,6 +50,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ${{ inputs.target }}-${{ inputs.subtarget }}${{ inputs.testing == true && '-testing' || '' }}-images
+
+      - name: Extract image if needed
+        run: |
+          # gunzip return 2 for warning hence we need to reset
+          if [ -f "${{ inputs.image }}.gz" ]; then
+            gunzip -q ${{ inputs.image }}.gz || true
+          fi
       
       - name: Run test with QEMU
         if: inputs.use_qemu == true
