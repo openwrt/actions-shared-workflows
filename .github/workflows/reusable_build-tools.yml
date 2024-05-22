@@ -49,30 +49,30 @@ jobs:
         working-directory: openwrt
         run: make tools/download tools/check FIXUP=1 -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
 
-      - name: Validate checked packages
+      - name: Validate checked tools
         shell: su buildbot -c "sh -e {0}"
         working-directory: openwrt
         run: |
           . .github/workflows/scripts/ci_helpers.sh
 
           if git diff --name-only --exit-code; then
-            success "All packages seems ok"
+            success "All tools seems ok"
           else
             err "Some package Makefiles requires fix. (run 'make package/check FIXUP=1' and force push this pr)"
             err "You can also check the provided artifacts with the refreshed patch from this CI run."
-            mkdir packages-fixed
+            mkdir tools-fixed
             for f in $(git diff --name-only); do
-              cp --parents $f packages-fixed/
+              cp --parents $f tools-fixed/
             done
             exit 1
           fi
 
-      - name: Upload fixed Packages
+      - name: Upload fixed tools
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: packages-fixed
-          path: openwrt/packages-fixed
+          name: tools-fixed
+          path: openwrt/tools-fixed
 
   build:
     name: Build tools
