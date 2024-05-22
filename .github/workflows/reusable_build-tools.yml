@@ -3,6 +3,9 @@ name: Build host tools
 on:
   workflow_call:
     inputs:
+      use_openwrt_container:
+        type: boolean
+        default: true
       generate_prebuilt_artifacts:
         type: boolean
 
@@ -10,10 +13,56 @@ permissions:
   contents: read
 
 jobs:
+  determine-container-info:
+    name: Determine needed info to push containers
+    runs-on: ubuntu-latest
+    outputs:
+      owner-lc: ${{ steps.generate-owner-lc.outputs.owner-lc }}
+      container-tag: ${{ steps.determine-container-tag.outputs.container-tag }}
+
+    steps:
+      - name: Set lower case owner name
+        id: generate-owner-lc
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          if [ ${{ inputs.use_openwrt_container }} == "true" ]; then
+            OWNER_LC=openwrt
+          fi
+
+          echo "owner-lc=${OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      # Per branch tools container tag
+      # By default stick to latest
+      # For official test targetting openwrt stable branch
+      # Get the branch or parse the tag and push dedicated tools containers
+      # Any branch that will match this pattern openwrt-[0-9][0-9].[0-9][0-9]
+      # will refresh the tools container with the matching tag.
+      # (example branch openwrt-22.03 -> tools:openwrt-22.03)
+      # (example branch openwrt-22.03-test -> tools:openwrt-22.03)
+      - name: Determine tools container tag
+        id: determine-container-tag
+        run: |
+          CONTAINER_TAG=latest
+
+          if [ ${{ github.ref_type }} == "branch" ]; then
+            if echo "${{ github.ref_name }}" | grep -q -E 'openwrt-[0-9][0-9]\.[0-9][0-9]'; then
+              CONTAINER_TAG="$(echo ${{ github.ref_name }} | sed 's/^\(openwrt-[0-9][0-9]\.[0-9][0-9]\).*/\1/')"
+            fi
+          elif [ ${{ github.ref_type }} == "tag" ]; then
+            if echo "${{ github.ref_name }}" | grep -q -E 'v[0-9][0-9]\.[0-9][0-9]\..+'; then
+              CONTAINER_TAG=openwrt-"$(echo ${{ github.ref_name }} | sed 's/v\([0-9][0-9]\.[0-9][0-9]\)\..\+/\1/')"
+            fi
+          fi
+
+          echo "Container tag to push for tools and toolchain is $CONTAINER_TAG"
+          echo "container-tag=$CONTAINER_TAG" >> "$GITHUB_OUTPUT"
+
   check:
     name: Check tools
+    needs: determine-container-info
     runs-on: ubuntu-latest
-    container: ghcr.io/openwrt/buildbot/buildworker-v3.8.0:v9
+    container: ghcr.io/${{ needs.determine-container-info.outputs.owner-lc }}/tools:${{ needs.determine-container-info.outputs.container-tag }}
 
     steps:
       - name: Checkout
@@ -23,6 +72,16 @@ jobs:
 
       - name: Fix permission
         run: chown -R buildbot:buildbot openwrt
+
+      - name: Prepare prebuilt tools
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          mkdir -p staging_dir build_dir
+          ln -s /prebuilt_tools/staging_dir/host staging_dir/host
+          ln -s /prebuilt_tools/build_dir/host build_dir/host
+
+          ./scripts/ext-tools.sh --refresh
 
       - name: Set configs for tools container
         shell: su buildbot -c "sh -e {0}"
