@@ -42,12 +42,17 @@ jobs:
       - name: Compile needed host tools
         shell: su buildbot -c "sh -e {0}"
         working-directory: openwrt
-        run: make tools/zstd/compile -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+        run: make tools/zstd/compile tools/quilt/compile -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
 
       - name: Download and check tools
         shell: su buildbot -c "sh -e {0}"
         working-directory: openwrt
         run: make tools/download tools/check FIXUP=1 -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+      - name: Refresh tools
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: make tools/refresh -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
 
       - name: Validate checked tools
         shell: su buildbot -c "sh -e {0}"
