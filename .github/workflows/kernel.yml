@@ -64,8 +64,8 @@ jobs:
           JSON_TARGETS_SUBTARGETS='['
           FIRST=1
           for TARGET_SUBTARGET in $TARGETS_SUBTARGETS; do
-            TARGET_KERNEL_VER="$(echo "$TARGET_KERNELS" | grep $TARGET_SUBTARGET | cut -d " " -f 2)"
-            TARGET_TESTING_KERNEL_VER="$(echo "$TARGET_KERNELS" | grep $TARGET_SUBTARGET | cut -d " " -f 3)"
+            TARGET_KERNEL_VER="$(echo "$TARGET_KERNELS" | grep -w $TARGET_SUBTARGET | cut -d " " -f 2)"
+            TARGET_TESTING_KERNEL_VER="$(echo "$TARGET_KERNELS" | grep -w $TARGET_SUBTARGET | cut -d " " -f 3)"
 
             TARGET=$(echo $TARGET_SUBTARGET | cut -d "/" -f 1)
             SUBTARGET=$(echo $TARGET_SUBTARGET | cut -d "/" -f 2)
@@ -97,8 +97,8 @@ jobs:
           JSON_TARGETS='['
           FIRST=1
           for TARGET_SUBTARGET in $TARGETS; do
-            TARGET_KERNEL_VER="$(echo "$TARGET_KERNELS" | grep $TARGET_SUBTARGET | cut -d " " -f 2)"
-            TARGET_TESTING_KERNEL_VER="$(echo "$TARGET_KERNELS" | grep $TARGET_SUBTARGET | cut -d " " -f 3)"
+            TARGET_KERNEL_VER="$(echo "$TARGET_KERNELS" | grep -w $TARGET_SUBTARGET | cut -d " " -f 2)"
+            TARGET_TESTING_KERNEL_VER="$(echo "$TARGET_KERNELS" | grep -w $TARGET_SUBTARGET | cut -d " " -f 3)"
 
             TARGET=$(echo $TARGET_SUBTARGET | cut -d "/" -f 1)
             SUBTARGET=$(echo $TARGET_SUBTARGET | cut -d "/" -f 2)
