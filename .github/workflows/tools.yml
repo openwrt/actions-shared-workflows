@@ -69,6 +69,11 @@ jobs:
           name: macos-latest-config
           path: ${{ env.WORKPATH }}/openwrt/.config
 
+  check-linux-buildbot:
+    name: Check tools with buildbot container
+    uses: ./.github/workflows/reusable_check-tools.yml
+
   build-linux-buildbot:
     name: Build tools with buildbot container
+    needs: check-linux-buildbot
     uses: ./.github/workflows/reusable_build-tools.yml

@@ -3,9 +3,6 @@ name: Build host tools
 on:
   workflow_call:
     inputs:
-      use_openwrt_container:
-        type: boolean
-        default: true
       generate_prebuilt_artifacts:
         type: boolean
 
@@ -13,135 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  determine-container-info:
-    name: Determine needed info to push containers
-    runs-on: ubuntu-latest
-    outputs:
-      owner-lc: ${{ steps.generate-owner-lc.outputs.owner-lc }}
-      container-tag: ${{ steps.determine-container-tag.outputs.container-tag }}
-
-    steps:
-      - name: Set lower case owner name
-        id: generate-owner-lc
-        run: |
-          OWNER_LC=$(echo "${{ github.repository_owner }}" \
-            | tr '[:upper:]' '[:lower:]')
-
-          if [ ${{ inputs.use_openwrt_container }} == "true" ]; then
-            OWNER_LC=openwrt
-          fi
-
-          echo "owner-lc=$OWNER_LC" >> $GITHUB_OUTPUT
-
-      # Per branch tools container tag
-      # By default stick to latest
-      # For official test targetting openwrt stable branch
-      # Get the branch or parse the tag and push dedicated tools containers
-      # Any branch that will match this pattern openwrt-[0-9][0-9].[0-9][0-9]
-      # will refresh the tools container with the matching tag.
-      # (example branch openwrt-22.03 -> tools:openwrt-22.03)
-      # (example branch openwrt-22.03-test -> tools:openwrt-22.03)
-      - name: Determine tools container tag
-        id: determine-container-tag
-        run: |
-          CONTAINER_TAG=latest
-
-          if [ ${{ github.ref_type }} == "branch" ]; then
-            if echo "${{ github.ref_name }}" | grep -q -E 'openwrt-[0-9][0-9]\.[0-9][0-9]'; then
-              CONTAINER_TAG="$(echo ${{ github.ref_name }} | sed 's/^\(openwrt-[0-9][0-9]\.[0-9][0-9]\).*/\1/')"
-            fi
-          elif [ ${{ github.ref_type }} == "tag" ]; then
-            if echo "${{ github.ref_name }}" | grep -q -E 'v[0-9][0-9]\.[0-9][0-9]\..+'; then
-              CONTAINER_TAG=openwrt-"$(echo ${{ github.ref_name }} | sed 's/v\([0-9][0-9]\.[0-9][0-9]\)\..\+/\1/')"
-            fi
-          fi
-
-          echo "Container tag to push for tools and toolchain is $CONTAINER_TAG"
-          echo "container-tag=$CONTAINER_TAG" >> "$GITHUB_OUTPUT"
-
-  check:
-    name: Check tools
-    needs: determine-container-info
-    runs-on: ubuntu-latest
-    container: ghcr.io/${{ needs.determine-container-info.outputs.owner-lc }}/tools:${{ needs.determine-container-info.outputs.container-tag }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          path: openwrt
-
-      - name: Fix permission
-        run: chown -R buildbot:buildbot openwrt
-
-      - name: Prepare prebuilt tools
-        shell: su buildbot -c "sh -e {0}"
-        working-directory: openwrt
-        run: |
-          mkdir -p staging_dir build_dir
-          ln -s /prebuilt_tools/staging_dir/host staging_dir/host
-          ln -s /prebuilt_tools/build_dir/host build_dir/host
-
-          ./scripts/ext-tools.sh --refresh
-
-      - name: Set configs for tools container
-        shell: su buildbot -c "sh -e {0}"
-        working-directory: openwrt
-        run: |
-          touch .config
-          echo CONFIG_DEVEL=y >> .config
-          echo CONFIG_AUTOREMOVE=y >> .config
-          echo CONFIG_CCACHE=y >> .config
-          echo CONFIG_BUILD_ALL_HOST_TOOLS=y >> .config
-
-      - name: Make prereq
-        shell: su buildbot -c "sh -e {0}"
-        working-directory: openwrt
-        run: make defconfig
-
-      - name: Compile needed host tools
-        shell: su buildbot -c "sh -e {0}"
-        working-directory: openwrt
-        run: make tools/zstd/compile tools/quilt/compile -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
-
-      - name: Download and check tools
-        shell: su buildbot -c "sh -e {0}"
-        working-directory: openwrt
-        run: make tools/download tools/check FIXUP=1 -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
-
-      - name: Refresh tools
-        shell: su buildbot -c "sh -e {0}"
-        working-directory: openwrt
-        run: make tools/refresh -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
-
-      - name: Validate checked tools
-        shell: su buildbot -c "sh -e {0}"
-        working-directory: openwrt
-        run: |
-          . .github/workflows/scripts/ci_helpers.sh
-
-          if git diff --name-only --exit-code; then
-            success "All tools seems ok"
-          else
-            err "Some package Makefiles requires fix. (run 'make package/check FIXUP=1' and force push this pr)"
-            err "You can also check the provided artifacts with the refreshed patch from this CI run."
-            mkdir tools-fixed
-            for f in $(git diff --name-only); do
-              cp --parents $f tools-fixed/
-            done
-            exit 1
-          fi
-
-      - name: Upload fixed tools
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: tools-fixed
-          path: openwrt/tools-fixed
-
   build:
     name: Build tools
-    needs: check
     runs-on: ubuntu-latest
     container: ghcr.io/openwrt/buildbot/buildworker-v3.8.0:v9
 
