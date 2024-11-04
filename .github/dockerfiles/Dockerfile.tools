@@ -1,4 +1,4 @@
-FROM ghcr.io/openwrt/buildbot/buildworker-v3.8.0:v9
+FROM ghcr.io/openwrt/buildbot/buildworker-v3.11.8:v22
 
 COPY --chown=buildbot staging_dir/host /prebuilt_tools/staging_dir/host
 COPY --chown=buildbot build_dir/host /prebuilt_tools/build_dir/host
