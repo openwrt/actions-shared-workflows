@@ -13,7 +13,7 @@ jobs:
   build:
     name: Build tools
     runs-on: ubuntu-latest
-    container: ghcr.io/openwrt/buildbot/buildworker-v3.8.0:v9
+    container: ghcr.io/openwrt/buildbot/buildworker-v3.11.8:v20
 
     steps:
       - name: Checkout
