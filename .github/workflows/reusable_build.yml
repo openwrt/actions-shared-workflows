@@ -651,11 +651,35 @@ jobs:
         working-directory: openwrt
         run: make -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
 
+      - name: Check SDK
+        if: inputs.build_ib_sdk == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: .github/workflows/scripts/tools-smoke-test.sh sdk ${{ inputs.target }} ${{ inputs.subtarget }}
+
+      - name: Check ImageBuilder
+        if: inputs.build_ib_sdk == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: .github/workflows/scripts/tools-smoke-test.sh imagebuilder ${{ inputs.target }} ${{ inputs.subtarget }}
+
+      - name: Check BPF toolchain
+        if: inputs.build_bpf_toolchain == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: .github/workflows/scripts/tools-smoke-test.sh bpf ${{ inputs.target }} ${{ inputs.subtarget }}
+
       - name: Build external toolchain
         if: inputs.build_external_toolchain == true
         shell: su buildbot -c "sh -e {0}"
         working-directory: openwrt
         run: make target/toolchain/compile -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+      - name: Check external toolchain
+        if: inputs.build_external_toolchain == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: .github/workflows/scripts/tools-smoke-test.sh toolchain ${{ inputs.target }} ${{ inputs.subtarget }}
 
       - name: Coverity prepare toolchain
         if: inputs.coverity_check_packages != ''
