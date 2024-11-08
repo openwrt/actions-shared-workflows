@@ -193,14 +193,29 @@ jobs:
           sudo apt-get install -y qemu-user-static binfmt-support
           sudo update-binfmts --import
 
+      - name: Checkout
+        if: ${{ matrix.runtime_test && fromJSON(env.HAVE_IPKS) }}
+        uses: actions/checkout@v4
+        with:
+          repository: openwrt/actions-shared-workflows
+          path: dockerfiles_feeds
+          sparse-checkout: |
+            .github/scripts/ci_helpers.sh
+            .github/dockerfiles_feeds/Dockerfile
+            .github/dockerfiles_feeds/entrypoint.sh
+          sparse-checkout-cone-mode: false
+
       - name: Build Docker container
         if: ${{ matrix.runtime_test && fromJSON(env.HAVE_IPKS) }}
         run: |
-          docker build --platform linux/${{ matrix.arch }} -t test-container --build-arg ARCH .github/workflows/
+          docker build --platform linux/${{ matrix.arch }} -t test-container \
+            --build-arg ARCH dockerfiles_feeds/.github/dockerfiles_feeds/
         env:
           ARCH: ${{ matrix.arch }}-${{ env.BRANCH }}
 
       - name: Test via Docker container
         if: ${{ matrix.runtime_test && fromJSON(env.HAVE_IPKS) }}
         run: |
-          docker run --platform linux/${{ matrix.arch }} --rm -v $GITHUB_WORKSPACE:/ci test-container
+          docker run --platform linux/${{ matrix.arch }} --rm -v $GITHUB_WORKSPACE:/ci \
+            -v $GITHUB_WORKSPACE/dockerfiles_feeds:/dockerfiles_feeds \
+            -e CI_HELPER=/dockerfiles_feeds/scripts/ci_helpers.sh test-container
