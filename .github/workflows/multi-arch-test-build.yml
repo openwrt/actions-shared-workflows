@@ -85,7 +85,12 @@ jobs:
 
           # fallback to test packages if nothing explicitly changes this is
           # should run if other mechanics in packages.git changed
-          PACKAGES="${PACKAGES:-vim attendedsysupgrade-common bmon}"
+          REPOSITORY_NAME=${GITHUB_REPOSITORY#*/}
+          if [ "$REPOSITORY_NAME" = "routing" ]; then
+            PACKAGES="${PACKAGES:-bird2 cjdns olsrd}"
+          else
+            PACKAGES="${PACKAGES:-vim attendedsysupgrade-common bmon}"
+          fi
 
           echo "Building $PACKAGES"
           echo "PACKAGES=$PACKAGES" >> $GITHUB_ENV
