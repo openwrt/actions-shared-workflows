@@ -60,14 +60,15 @@ jobs:
           RELEASE: ${{ steps.issue-parser.outputs.issueparser_release }}
         run: |
           # Make sure this is a real release following pattern r[0-9]-[0-9a-z]
-          [ -z "$(echo "${{ env.RELEASE }}" | grep -Po '^SNAPSHOT$|^[0-9]+\.[0-9]+\.[0-9](-rc[0-9]+)*$')" ] && echo "invalid_release=true" >> "$GITHUB_OUTPUT" && exit 0
+          [ -z "$(echo "${{ env.RELEASE }}" | grep -Po '^SNAPSHOT$|^[0-9]+\.[0-9]+-SNAPSHOT$|^[0-9]+\.[0-9]+\.[0-9](-rc[0-9]+)*$')" ] && echo "invalid_release=true" >> "$GITHUB_OUTPUT" && exit 0
 
           release=${{ env.RELEASE }}
           # With release we need to add v for tag verification
           [ -n "$(echo ${{ env.RELEASE }} | grep -Po '^[0-9]+\.[0-9]+\.[0-9](-rc[0-9]+)*$')" ] && release=v${{ env.RELEASE }}
+          [ -n "$(echo ${{ env.RELEASE }} | grep -Po '^[0-9]+\.[0-9]+-SNAPSHOT$')" ] && release=openwrt-$(echo ${{ env.RELEASE }} | grep -Po '^[0-9]+\.[0-9]+')
 
           # Check if this release exist or is something downstream
-          [ $release != "SNAPSHOT" ] && ! git show-ref --tags $release --quiet && echo "invalid_release=true" >> "$GITHUB_OUTPUT" && exit 0
+          [ $release != "SNAPSHOT" ] && [ -z $(echo $release | grep -Po '^openwrt-[0-9]+\.[0-9]+$') ] && ! git show-ref --tags $release --quiet && echo "invalid_release=true" >> "$GITHUB_OUTPUT" && exit 0
 
           tag_name=${{ env.RELEASE }}
           [ $tag_name != "SNAPSHOT" ] && tag_name=release/$(echo ${{ env.RELEASE }} | grep -Po '^[0-9]+\.[0-9]+')
@@ -130,7 +131,7 @@ jobs:
           DUMP_TARGET_INFO_SCRIPT: scripts/dump-target-info.pl
         run: |
           BRANCH=${{ env.BRANCH }}
-          [ $BRANCH != "main" ] && BRANCH=openwrt-$(echo ${{ env.BRANCH }} | sed 's/^v\([0-9]\+\.[0-9]\+\)\.[0-9]\(-rc[0-9]\+\)*$/\1/')
+          [ $BRANCH != "main" ] && [ -z $( echo $BRANCH | grep -Po '^openwrt-[0-9]+\.[0-9]+$' ) ] && BRANCH=openwrt-$(echo ${{ env.BRANCH }} | sed 's/^v\([0-9]\+\.[0-9]\+\)\.[0-9]\(-rc[0-9]\+\)*$/\1/')
 
           # Checkout upstream version of the DUMP_TARGET_INFO_SCRIPT
           git checkout -q origin/$BRANCH ${{ env.DUMP_TARGET_INFO_SCRIPT }}
