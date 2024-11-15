@@ -154,6 +154,7 @@ jobs:
           echo >> PKG-INFO
           echo Full file listing: >> PKG-INFO
           ls -al *.ipk >> PKG-INFO || true
+          ls -al *.apk >> PKG-INFO || true
           cat PKG-INFO
 
       - name: Store packages
@@ -165,6 +166,8 @@ jobs:
             Packages
             Packages.*
             *.ipk
+            packages.adb
+            *.apk
             PKG-INFO
 
       - name: Store logs
