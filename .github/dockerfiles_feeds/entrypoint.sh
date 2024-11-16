@@ -4,6 +4,12 @@
 set -o errexit # failing commands causes script to fail
 set -o nounset # undefined variables causes script to fail
 
+if [ -z "$(find . -maxdepth 1 -type f -name '*.ipk' -print)" ]
+then
+	echo "this script can only test ipk packages, and none were found"
+	exit 0
+fi
+
 echo "src/gz packages_ci file:///ci" >> /etc/opkg/distfeeds.conf
 
 FINGERPRINT="$(usign -F -p /ci/packages_ci.pub)"
