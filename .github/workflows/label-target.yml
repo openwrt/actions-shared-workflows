@@ -3,10 +3,15 @@
 name: Build check target specified in labels
 on:
   workflow_call:
+    inputs:
+      target:
+        type: string
+      subtarget:
+        type: string
 
 jobs:
   set_target:
-    if: startsWith(github.event.label.name, 'ci:target:')
+    if: startsWith(github.event.label.name, 'ci:target:') || inputs.target != ''
     name: Set target
     runs-on: ubuntu-latest
     outputs:
@@ -19,8 +24,23 @@ jobs:
         env:
           CI_EVENT_LABEL_NAME: ${{ github.event.label.name }}
         run: |
-          echo "$CI_EVENT_LABEL_NAME" | sed -n 's/.*:\(.*\):\(.*\)$/target=\1/p' | tee --append $GITHUB_OUTPUT
-          echo "$CI_EVENT_LABEL_NAME" | sed -n 's/.*:\(.*\):\(.*\)$/subtarget=\2/p' | tee --append $GITHUB_OUTPUT
+          if [ -n "${{ inputs.target}}" ]; then
+            target="${{ inputs.target }}"
+          else
+            target=$(echo "$CI_EVENT_LABEL_NAME" | sed -n 's/.*:\(.*\):\(.*\)$/\1/p')
+          fi
+
+          if [ -n "${{ inputs.subtarget}}" ]; then
+            subtarget="${{ inputs.subtarget }}"
+          else
+            subtarget=$(echo "$CI_EVENT_LABEL_NAME" | sed -n 's/.*:\(.*\):\(.*\)$/\2/p')
+          fi
+
+          echo "Setting target as $target, subtarget as $subtarget"
+          {
+            echo "target=$target"
+            echo "subtarget=$subtarget"
+          } >> "$GITHUB_OUTPUT"
 
   build_target:
     name: Build target
