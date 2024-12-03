@@ -35,7 +35,9 @@ jobs:
             gnu-sed \
             grep \
             gpatch \
-            make
+            make \
+            python-setuptools \
+            swig
 
             echo "/bin" >> "$GITHUB_PATH"
             echo "/sbin/Library/Apple/usr/bin" >> "$GITHUB_PATH"
