@@ -1,0 +1,70 @@
+name: Test Image
+
+on:
+  workflow_call:
+    inputs:
+      target:
+        required: true
+        type: string
+      subtarget:
+        required: true
+        type: string
+      testing:
+        type: boolean
+      image:
+        required: true
+        type: string
+      use_qemu:
+        type: boolean
+      qemu_target:
+        type: string
+      qemu_bin:
+        type: string
+
+jobs:
+  test:
+    name: Test image ${{ inputs.target }}/${{ inputs.subtarget }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          repository: aparcar/openwrt-tests
+
+      - name: Install dependencies
+        run: |
+          sudo apt install python3-pip
+
+      - name: Install QEMU dependency
+        if: inputs.use_qemu == true
+        run: |
+          sudo apt install qemu-system-${{ inputs.qemu_target }}
+
+      - name: Install test project dependencies
+        run: |
+          pip3 install poetry
+          poetry install
+
+      - name: Download compiled images from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.target }}-${{ inputs.subtarget }}${{ inputs.testing == true && '-testing' || '' }}-images
+
+      - name: Extract image if needed
+        run: |
+          # gunzip return 2 for warning hence we need to reset
+          if [ -f "${{ inputs.image }}.gz" ]; then
+            gunzip -q ${{ inputs.image }}.gz || true
+          fi
+      
+      - name: Run test with QEMU
+        if: inputs.use_qemu == true
+        run: |
+          export LG_QEMU_BIN=qemu-system-${{ inputs.qemu_bin || inputs.qemu_target }}
+
+          poetry run pytest \
+            --lg-env tests/qemu.yaml \
+            --target ${{ inputs.target }}-${{ inputs.subtarget }} \
+            --firmware "$(pwd)"/${{ inputs.image }}
+
