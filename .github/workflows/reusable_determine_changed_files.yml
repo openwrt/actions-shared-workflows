@@ -17,8 +17,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: ${{ github.event_name == 'pull_request' && 2 || 0 }}
 
       - name: Get changed files
         id: changed-files
-        uses: tj-actions/changed-files@v45
+        run: |
+          if [ ${{ github.event_name }} == 'pull_request' ]; then
+            CHANGED_FILES="$(git diff --name-only "${{ github.event.pull_request.base.sha }}")"
+          elif [ ${{ github.event_name }} == 'push' ]; then
+            CHANGED_FILES="$(git diff --name-only "${{ github.event.before }}")"
+          else
+            CHANGED_FILES=""
+          fi
+
+          echo "all_changed_files="$CHANGED_FILES"" >> $GITHUB_OUTPUT
