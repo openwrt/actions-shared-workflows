@@ -35,6 +35,10 @@ on:
         type: boolean
       build_all_boards:
         type: boolean
+      build_ib_sdk:
+        type: boolean
+      build_bpf_toolchain:
+        type: boolean
       use_openwrt_container:
         type: boolean
         default: true
@@ -449,6 +453,33 @@ jobs:
         run: |
           echo CONFIG_KERNEL_WERROR=y >> .config
 
+      - name: Configure various options which are used on buildbots
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          echo CONFIG_JSON_CYCLONEDX_SBOM=y >> .config
+          echo CONFIG_COLLECT_KERNEL_DEBUG=y >> .config
+          echo CONFIG_REPRODUCIBLE_DEBUG_INFO=y >> .config
+          echo CONFIG_KERNEL_BUILD_USER="builder" >> .config
+          echo CONFIG_KERNEL_BUILD_DOMAIN="buildhost" >> .config
+
+      - name: Configure BPF options as used on buildbots
+        shell: su buildbot -c "sh -e {0}"
+        if: inputs.build_bpf_toolchain == true
+        working-directory: openwrt
+        run: |
+          echo CONFIG_DEVEL=y >> .config
+          echo CONFIG_SDK_LLVM_BPF=y >> .config
+          echo CONFIG_BPF_TOOLCHAIN_BUILD_LLVM=y >> .config
+
+      - name: Configure SDK and IB options used on buildbots
+        shell: su buildbot -c "sh -e {0}"
+        if: inputs.build_ib_sdk == true
+        working-directory: openwrt
+        run: |
+          echo CONFIG_IB=y >> .config
+          echo CONFIG_SDK=y >> .config
+
       - name: Configure all kernel modules
         if: inputs.build_all_kmods == true
         shell: su buildbot -c "sh -e {0}"
@@ -620,11 +651,35 @@ jobs:
         working-directory: openwrt
         run: make -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
 
+      - name: Check SDK
+        if: inputs.build_ib_sdk == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: .github/workflows/scripts/tools-smoke-test.sh sdk ${{ inputs.target }} ${{ inputs.subtarget }}
+
+      - name: Check ImageBuilder
+        if: inputs.build_ib_sdk == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: .github/workflows/scripts/tools-smoke-test.sh imagebuilder ${{ inputs.target }} ${{ inputs.subtarget }}
+
+      - name: Check BPF toolchain
+        if: inputs.build_bpf_toolchain == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: .github/workflows/scripts/tools-smoke-test.sh bpf ${{ inputs.target }} ${{ inputs.subtarget }}
+
       - name: Build external toolchain
         if: inputs.build_external_toolchain == true
         shell: su buildbot -c "sh -e {0}"
         working-directory: openwrt
         run: make target/toolchain/compile -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+      - name: Check external toolchain
+        if: inputs.build_external_toolchain == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: .github/workflows/scripts/tools-smoke-test.sh toolchain ${{ inputs.target }} ${{ inputs.subtarget }}
 
       - name: Coverity prepare toolchain
         if: inputs.coverity_check_packages != ''
