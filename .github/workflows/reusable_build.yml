@@ -285,6 +285,12 @@ jobs:
         with:
           path: openwrt
 
+      - name: Provide information about disk usage before the build
+        if: always()
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: df -h . ; du -sh .
+
       - name: Checkout packages feed
         if: inputs.include_feeds == true
         uses: actions/checkout@v4
@@ -683,6 +689,12 @@ jobs:
         with:
           name: ${{ inputs.target }}-${{ inputs.subtarget }}${{ inputs.testing == true && '-testing' || '' }}-logs
           path: "openwrt/logs"
+
+      - name: Provide information about disk usage after the build
+        if: always()
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: df -h . ; du -sh .
 
       - name: Cleanup dl/build_dir/staging_dir to make some space
         working-directory: openwrt
