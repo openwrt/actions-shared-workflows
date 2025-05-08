@@ -59,6 +59,8 @@ on:
         type: boolean
       upload_external_toolchain:
         type: boolean
+      upload_images:
+        type: boolean
       use_ccache_cache:
         type: boolean
         default: true
@@ -738,4 +740,13 @@ jobs:
         with:
           name: ${{ inputs.target }}-${{ inputs.subtarget }}-external-toolchain
           path: openwrt/bin/targets/${{ inputs.target }}/${{ inputs.subtarget }}/${{ steps.get-toolchain-name.outputs.toolchain-name }}
+          retention-days: 1
+
+      - name: Upload compiled images
+        if: inputs.build_full == true && inputs.upload_images == true
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.target }}-${{ inputs.subtarget }}${{ inputs.testing == true && '-testing' || '' }}-images
+          path: |
+            openwrt/bin/targets/${{ inputs.target }}/${{ inputs.subtarget }}/openwrt-${{ inputs.target }}-${{ inputs.subtarget }}-*
           retention-days: 1
