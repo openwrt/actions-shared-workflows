@@ -88,6 +88,8 @@ jobs:
           REPOSITORY_NAME=${GITHUB_REPOSITORY#*/}
           if [ "$REPOSITORY_NAME" = "routing" ]; then
             PACKAGES="${PACKAGES:-bird2 cjdns olsrd}"
+          elif [ "$REPOSITORY_NAME" = "telephony" ]; then
+	    PACKAGES="${PACKAGES:-asterisk siproxd freeswitch}"
           else
             PACKAGES="${PACKAGES:-vim attendedsysupgrade-common bmon}"
           fi
