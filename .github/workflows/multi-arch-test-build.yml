@@ -47,7 +47,8 @@ jobs:
             target: mpc85xx-p1010
             runtime_test: false
 
-          - arch: riscv64_generic
+            # Workaround: riscv64_riscv64 was renamed to riscv64_generic
+          - arch: ${{ (github.base_ref == 'openwrt-24.10' || github.base_ref == 'openwrt-23.05') && 'riscv64_riscv64' || 'riscv64_generic' }}
             target: sifiveu-generic
             runtime_test: false
 
