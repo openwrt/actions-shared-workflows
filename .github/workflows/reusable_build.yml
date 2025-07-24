@@ -313,16 +313,10 @@ jobs:
           repository: openwrt/telephony
           path: openwrt/feeds/telephony
 
-      - name: Parse toolchain file
+      - name: Parse toolchain path
         if: inputs.build_toolchain == false
-        id: parse-toolchain
         working-directory: openwrt
         run: |
-          if [ -d /external-toolchain/ ]; then
-            echo "toolchain-type=external_container" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
           TOOLCHAIN_PATH=snapshots
 
           if [ -n "${{ github.base_ref }}" ]; then
@@ -350,13 +344,26 @@ jobs:
           fi
 
           SUMS_FILE="https://downloads.cdn.openwrt.org/$TOOLCHAIN_PATH/targets/${{ inputs.target }}/${{ inputs.subtarget }}/sha256sums"
-          if curl $SUMS_FILE | grep -qP ".*openwrt-toolchain.*tar.(xz|zst)"; then
-            TOOLCHAIN_STRING="$( curl $SUMS_FILE | grep -P ".*openwrt-toolchain.*tar.(xz|zst)")"
+
+          echo "TOOLCHAIN_PATH=$TOOLCHAIN_PATH" >> "$GITHUB_ENV"
+          echo "SUMS_FILE=$SUMS_FILE" >> "$GITHUB_ENV"
+
+      - name: Parse toolchain file
+        if: inputs.build_toolchain == false
+        id: parse-toolchain
+        run: |
+          if [ -d /external-toolchain/ ]; then
+            echo "toolchain-type=external_container" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          if curl ${{ env.SUMS_FILE }} | grep -qP ".*openwrt-toolchain.*tar.(xz|zst)"; then
+            TOOLCHAIN_STRING="$( curl ${{ env.SUMS_FILE }} | grep -P ".*openwrt-toolchain.*tar.(xz|zst)")"
             TOOLCHAIN_FILE=$(echo "$TOOLCHAIN_STRING" | sed -n -E -e 's/.*(openwrt-toolchain.*.tar.(xz|zst))$/\1/p')
-            
+
             echo "toolchain-type=external_toolchain" >> $GITHUB_OUTPUT
-          elif curl $SUMS_FILE | grep -qP ".*openwrt-sdk.*tar.(xz|zst)"; then
-            TOOLCHAIN_STRING="$( curl $SUMS_FILE | grep -P ".*openwrt-sdk.*tar.(xz|zst)")"
+          elif curl ${{ env.SUMS_FILE }} | grep -qP ".*openwrt-sdk.*tar.(xz|zst)"; then
+            TOOLCHAIN_STRING="$( curl ${{ env.SUMS_FILE }} | grep -P ".*openwrt-sdk.*tar.(xz|zst)")"
             TOOLCHAIN_FILE=$(echo "$TOOLCHAIN_STRING" | sed -n -E -e 's/.*(openwrt-sdk.*.tar.(xz|zst))$/\1/p')
 
             echo "toolchain-type=external_sdk" >> $GITHUB_OUTPUT
@@ -366,7 +373,19 @@ jobs:
 
           echo "TOOLCHAIN_FILE=$TOOLCHAIN_FILE" >> "$GITHUB_ENV"
           echo "TOOLCHAIN_NAME=$(echo TOOLCHAIN_FILE | sed -E -e 's/.tar.(xz|zst)$//')" >> "$GITHUB_ENV"
-          echo "TOOLCHAIN_PATH=$TOOLCHAIN_PATH" >> "$GITHUB_ENV"
+
+      - name: Prase prebuilt llvm file
+        if: inputs.build_toolchain == false
+        id: parse-prebuilt-llvm
+        run: |
+          if curl ${{ env.SUMS_FILE }} | grep -qP ".*llvm-bpf.*tar.(xz|zst)"; then
+            LLVM_STRING="$( curl ${{ env.SUMS_FILE }} | grep -P ".*llvm-bpf.*tar.(xz|zst)")"
+            LLVM_FILE=$(echo "$LLVM_STRING" | sed -n -E -e 's/.*(llvm-bpf.*.tar.(xz|zst))$/\1/p')
+
+            echo "llvm-type=external" >> $GITHUB_OUTPUT
+          fi
+
+          echo "LLVM_FILE=$LLVM_FILE" >> "$GITHUB_ENV"
 
       - name: Download and extract ccache cache from s3
         id: restore-ccache-cache-s3
@@ -415,7 +434,8 @@ jobs:
 
       - name: Import GPG keys
         shell: su buildbot -c "sh -e {0}"
-        if: inputs.build_toolchain == false && steps.parse-toolchain.outputs.toolchain-type != 'internal' && steps.parse-toolchain.outputs.toolchain-type != 'external_container'
+        if: inputs.build_toolchain == false && ((steps.parse-toolchain.outputs.toolchain-type != 'internal' && steps.parse-toolchain.outputs.toolchain-type != 'external_container') ||
+          steps.parse-prebuilt-llvm.outputs.llvm-type == 'external')
         run: gpg --receive-keys 0xCD84BCED626471F1 0x1D53D1877742E911 0xCD54E82DADB3684D
 
       - name: Download external toolchain/sdk
@@ -430,6 +450,19 @@ jobs:
           sha256sum --check --ignore-missing sha256sums
           tar -xf ${{ env.TOOLCHAIN_FILE }}
           rm ${{ env.TOOLCHAIN_FILE }} sha256sums
+
+      - name: Download and extract prebuilt llvm
+        if: inputs.build_toolchain == false && steps.parse-prebuilt-llvm.outputs.llvm-type == 'external'
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          wget https://downloads.cdn.openwrt.org/${{ env.TOOLCHAIN_PATH }}/targets/${{ inputs.target }}/${{ inputs.subtarget }}/${{ env.LLVM_FILE }}
+          wget https://downloads.cdn.openwrt.org/${{ env.TOOLCHAIN_PATH }}/targets/${{ inputs.target }}/${{ inputs.subtarget }}/sha256sums.asc
+          wget https://downloads.cdn.openwrt.org/${{ env.TOOLCHAIN_PATH }}/targets/${{ inputs.target }}/${{ inputs.subtarget }}/sha256sums
+          gpg --with-fingerprint --verify sha256sums.asc
+          sha256sum --check --ignore-missing sha256sums
+          tar -xf ${{ env.LLVM_FILE }}
+          rm ${{ env.LLVM_FILE }} sha256sums
 
       - name: Clean configuration
         shell: su buildbot -c "sh -e {0}"
@@ -574,6 +607,13 @@ jobs:
           echo "CONFIG_TARGET_${{ inputs.target }}_${{ inputs.subtarget }}=y" >> .config
 
           make defconfig
+
+      - name: Configure prebuilt llvm
+        if: inputs.build_toolchain == false && steps.parse-prebuilt-llvm.outputs.llvm-type == 'external'
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          echo CONFIG_USE_LLVM_PREBUILT=y >> .config
 
       - name: Show configuration
         shell: su buildbot -c "sh -e {0}"
