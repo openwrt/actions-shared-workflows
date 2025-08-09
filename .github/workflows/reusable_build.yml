@@ -433,9 +433,18 @@ jobs:
             ${{ needs.setup_build.outputs.ccache_name }}-
 
       - name: Import GPG keys
+        id: import-gpg
+        continue-on-error: true
         shell: su buildbot -c "sh -e {0}"
         if: inputs.build_toolchain == false && ((steps.parse-toolchain.outputs.toolchain-type != 'internal' && steps.parse-toolchain.outputs.toolchain-type != 'external_container') ||
           steps.parse-prebuilt-llvm.outputs.llvm-type == 'external')
+        run: gpg --receive-keys 0xCD84BCED626471F1 0x1D53D1877742E911 0xCD54E82DADB3684D
+
+      # Sometimes importing the PGP keys failes with: gpg: keyserver receive failed: No keyserver available
+      # Just try again to import the keys if the step failed
+      - name: Retry Import GPG keys
+        shell: su buildbot -c "sh -e {0}"
+        if: steps.import-gpg.outcome == 'failure'
         run: gpg --receive-keys 0xCD84BCED626471F1 0x1D53D1877742E911 0xCD54E82DADB3684D
 
       - name: Download external toolchain/sdk
@@ -452,6 +461,8 @@ jobs:
           rm ${{ env.TOOLCHAIN_FILE }} sha256sums
 
       - name: Download and extract prebuilt llvm
+        id: download-llvm
+        continue-on-error: true
         if: inputs.build_toolchain == false && steps.parse-prebuilt-llvm.outputs.llvm-type == 'external'
         shell: su buildbot -c "sh -e {0}"
         working-directory: openwrt
@@ -459,6 +470,24 @@ jobs:
           wget https://downloads.cdn.openwrt.org/${{ env.TOOLCHAIN_PATH }}/targets/${{ inputs.target }}/${{ inputs.subtarget }}/${{ env.LLVM_FILE }}
           wget https://downloads.cdn.openwrt.org/${{ env.TOOLCHAIN_PATH }}/targets/${{ inputs.target }}/${{ inputs.subtarget }}/sha256sums.asc
           wget https://downloads.cdn.openwrt.org/${{ env.TOOLCHAIN_PATH }}/targets/${{ inputs.target }}/${{ inputs.subtarget }}/sha256sums
+          gpg --with-fingerprint --verify sha256sums.asc
+          sha256sum --check --ignore-missing sha256sums
+          tar -xf ${{ env.LLVM_FILE }}
+          rm ${{ env.LLVM_FILE }} sha256sums
+
+      # Sometimes the signature check failes with: gpg: BAD signature from "OpenWrt Build System (Nitrokey3) <contact@openwrt.org>" [unknown]
+      # Retry the download and signature check again in such situations. print the hash of the files to check if the files changed.
+      - name: Retry Download and extract prebuilt llvm
+        if: steps.download-llvm.outcome == 'failure'
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          sha256sum ${{ env.LLVM_FILE }} sha256sums.asc sha256sums
+          rm -f ${{ env.LLVM_FILE }} sha256sums.asc sha256sums
+          wget https://downloads.cdn.openwrt.org/${{ env.TOOLCHAIN_PATH }}/targets/${{ inputs.target }}/${{ inputs.subtarget }}/${{ env.LLVM_FILE }}
+          wget https://downloads.cdn.openwrt.org/${{ env.TOOLCHAIN_PATH }}/targets/${{ inputs.target }}/${{ inputs.subtarget }}/sha256sums.asc
+          wget https://downloads.cdn.openwrt.org/${{ env.TOOLCHAIN_PATH }}/targets/${{ inputs.target }}/${{ inputs.subtarget }}/sha256sums
+          sha256sum ${{ env.LLVM_FILE }} sha256sums.asc sha256sums
           gpg --with-fingerprint --verify sha256sums.asc
           sha256sum --check --ignore-missing sha256sums
           tar -xf ${{ env.LLVM_FILE }}
