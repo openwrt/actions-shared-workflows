@@ -461,6 +461,8 @@ jobs:
           rm ${{ env.TOOLCHAIN_FILE }} sha256sums
 
       - name: Download and extract prebuilt llvm
+        id: download-llvm
+        continue-on-error: true
         if: inputs.build_toolchain == false && steps.parse-prebuilt-llvm.outputs.llvm-type == 'external'
         shell: su buildbot -c "sh -e {0}"
         working-directory: openwrt
@@ -468,6 +470,24 @@ jobs:
           wget https://downloads.cdn.openwrt.org/${{ env.TOOLCHAIN_PATH }}/targets/${{ inputs.target }}/${{ inputs.subtarget }}/${{ env.LLVM_FILE }}
           wget https://downloads.cdn.openwrt.org/${{ env.TOOLCHAIN_PATH }}/targets/${{ inputs.target }}/${{ inputs.subtarget }}/sha256sums.asc
           wget https://downloads.cdn.openwrt.org/${{ env.TOOLCHAIN_PATH }}/targets/${{ inputs.target }}/${{ inputs.subtarget }}/sha256sums
+          gpg --with-fingerprint --verify sha256sums.asc
+          sha256sum --check --ignore-missing sha256sums
+          tar -xf ${{ env.LLVM_FILE }}
+          rm ${{ env.LLVM_FILE }} sha256sums
+
+      # Sometimes the signature check failes with: gpg: BAD signature from "OpenWrt Build System (Nitrokey3) <contact@openwrt.org>" [unknown]
+      # Retry the download and signature check again in such situations. print the hash of the files to check if the files changed.
+      - name: Retry Download and extract prebuilt llvm
+        if: steps.download-llvm.outcome == 'failure'
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          sha256sum ${{ env.LLVM_FILE }} sha256sums.asc sha256sums
+          rm -f ${{ env.LLVM_FILE }} sha256sums.asc sha256sums
+          wget https://downloads.cdn.openwrt.org/${{ env.TOOLCHAIN_PATH }}/targets/${{ inputs.target }}/${{ inputs.subtarget }}/${{ env.LLVM_FILE }}
+          wget https://downloads.cdn.openwrt.org/${{ env.TOOLCHAIN_PATH }}/targets/${{ inputs.target }}/${{ inputs.subtarget }}/sha256sums.asc
+          wget https://downloads.cdn.openwrt.org/${{ env.TOOLCHAIN_PATH }}/targets/${{ inputs.target }}/${{ inputs.subtarget }}/sha256sums
+          sha256sum ${{ env.LLVM_FILE }} sha256sums.asc sha256sums
           gpg --with-fingerprint --verify sha256sums.asc
           sha256sum --check --ignore-missing sha256sums
           tar -xf ${{ env.LLVM_FILE }}
