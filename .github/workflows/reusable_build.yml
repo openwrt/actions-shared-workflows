@@ -432,11 +432,24 @@ jobs:
           restore-keys: |
             ${{ needs.setup_build.outputs.ccache_name }}-
 
+      - name: Checkout OpenWrt keyring
+        if: inputs.build_toolchain == false && ((steps.parse-toolchain.outputs.toolchain-type != 'internal' && steps.parse-toolchain.outputs.toolchain-type != 'external_container') ||
+          steps.parse-prebuilt-llvm.outputs.llvm-type == 'external')
+        uses: actions/checkout@v4
+        with:
+          repository: openwrt/keyring
+          path: keyring
+          sparse-checkout: |
+            gpg/CD54E82DADB3684D.asc
+            gpg/0x1D53D1877742E911.asc
+            gpg/626471F1.asc
+          sparse-checkout-cone-mode: false
+
       - name: Import GPG keys
         shell: su buildbot -c "sh -e {0}"
         if: inputs.build_toolchain == false && ((steps.parse-toolchain.outputs.toolchain-type != 'internal' && steps.parse-toolchain.outputs.toolchain-type != 'external_container') ||
           steps.parse-prebuilt-llvm.outputs.llvm-type == 'external')
-        run: gpg --receive-keys 0xCD84BCED626471F1 0x1D53D1877742E911 0xCD54E82DADB3684D
+        run: gpg --import keyring/gpg/CD54E82DADB3684D.asc keyring/gpg/0x1D53D1877742E911.asc keyring/gpg/626471F1.asc
 
       - name: Download external toolchain/sdk
         if: inputs.build_toolchain == false && steps.parse-toolchain.outputs.toolchain-type != 'internal' && steps.parse-toolchain.outputs.toolchain-type != 'external_container'
