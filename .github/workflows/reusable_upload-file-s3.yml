@@ -34,7 +34,7 @@ jobs:
         run: mc alias set s3 ${{ secrets.s3_endpoint }} ${{ secrets.s3_access_key }} ${{ secrets.s3_secret_key }}
 
       - name: Download file
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: ${{ inputs.download_id }}
 
