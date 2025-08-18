@@ -43,7 +43,7 @@ jobs:
 
     steps:
       - name: Checkout main
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
           show-progress: false
@@ -78,7 +78,7 @@ jobs:
           echo "Detected Release $release"
 
       - name: Checkout Bug Release
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
           show-progress: false
