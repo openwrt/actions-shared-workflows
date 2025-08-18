@@ -57,7 +57,7 @@ jobs:
             runtime_test: true
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -222,7 +222,7 @@ jobs:
 
       - name: Checkout
         if: ${{ matrix.runtime_test && fromJSON(env.HAVE_PKGS) }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: openwrt/actions-shared-workflows
           path: dockerfiles_feeds
