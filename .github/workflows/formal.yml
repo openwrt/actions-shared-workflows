@@ -2,6 +2,10 @@ name: Test Formalities
 
 on:
   workflow_call:
+    inputs:
+      check_commit_message:
+        type: boolean
+        default: true
 
 jobs:
   build:
@@ -59,11 +63,13 @@ jobs:
               RET=1
             fi
 
-            if echo "$body" | grep -v "Signed-off-by:"; then
-              success "A commit message exists"
-            else
-              err "Missing commit message. Please describe your changes"
-              RET=1
+            if [ ${{ inputs.check_commit_message }} == "true" ]; then
+              if echo "$body" | grep -v "Signed-off-by:"; then
+                success "A commit message exists"
+              else
+                err "Missing commit message. Please describe your changes"
+                RET=1
+              fi
             fi
           done
 
