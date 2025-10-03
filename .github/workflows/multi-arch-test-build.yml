@@ -71,6 +71,13 @@ jobs:
       - name: Determine branch name
         run: |
           BRANCH="${GITHUB_BASE_REF#refs/heads/}"
+          case "$BRANCH" in
+            main|master|openwrt-[0-9]*\.[0-9]*)
+              ;;
+            *)
+              BRANCH="master"
+              ;;
+          esac
           echo "Building for $BRANCH"
           echo "BRANCH=$BRANCH" >> $GITHUB_ENV
 
