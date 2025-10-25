@@ -30,6 +30,7 @@ jobs:
         working-directory: ${{ env.WORKPATH }}/openwrt
         run: |
           brew install \
+            python@3.12 \
             automake \
             coreutils \
             diffutils \
