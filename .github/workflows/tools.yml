@@ -65,14 +65,14 @@ jobs:
 
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: macos-latest-logs
           path: ${{ env.WORKPATH }}/openwrt/logs
 
       - name: Upload config
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: macos-latest-config
           path: ${{ env.WORKPATH }}/openwrt/.config
