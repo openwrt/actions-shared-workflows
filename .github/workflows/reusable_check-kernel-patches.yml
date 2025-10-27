@@ -149,7 +149,7 @@ jobs:
 
       - name: Upload Refreshed Patches
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ inputs.target }}-${{ inputs.subtarget }}${{ inputs.testing == true && '-testing' || '' }}-refreshed
           path: openwrt/${{ inputs.target }}-${{ inputs.subtarget }}-refreshed

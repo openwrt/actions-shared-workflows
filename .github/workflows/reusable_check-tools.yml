@@ -132,7 +132,7 @@ jobs:
 
       - name: Upload fixed tools
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: tools-fixed
           path: openwrt/tools-fixed
