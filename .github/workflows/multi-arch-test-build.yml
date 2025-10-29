@@ -64,6 +64,9 @@ jobs:
       - name: Determine branch name
         run: |
           BRANCH="${GITHUB_BASE_REF#refs/heads/}"
+          if [[ "$BRANCH" != "master" && "$BRANCH" != "main" && ! "$BRANCH" =~ ^openwrt-[0-9]+\.[0-9]+$ ]]; then
+            BRANCH="master"
+          fi
           echo "Building for $BRANCH"
           echo "BRANCH=$BRANCH" >> $GITHUB_ENV
 
