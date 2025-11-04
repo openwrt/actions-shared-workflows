@@ -99,6 +99,7 @@ jobs:
           echo "PACKAGES=$PACKAGES" >> $GITHUB_ENV
 
       - name: Generate OPKG build keys
+        if: ${{ env.BRANCH == 'openwrt-24.10' || env.BRANCH == 'openwrt-23.05' }}
         run: |
           sudo apt-get update
           sudo apt-get install -y signify-openbsd
@@ -109,6 +110,7 @@ jobs:
           echo "$EOF" >> $GITHUB_ENV
 
       - name: Generate APK build keys
+        if: ${{ env.BRANCH != 'openwrt-24.10' && env.BRANCH != 'openwrt-23.05' }}
         run: |
           openssl ecparam -name prime256v1 -genkey -noout -out packages-ci-private.pem
           openssl ec -in packages-ci-private.pem -pubout > packages-ci-public.pem
