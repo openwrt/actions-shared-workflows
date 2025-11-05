@@ -19,7 +19,7 @@ elif [ $PKG_MANAGER = "apk" ]; then
 	apk update
 fi
 
-CI_HELPER="${CI_HELPER:-/ci/.github/workflows/ci_helpers.sh}"
+CI_HELPERS="${CI_HELPERS:-/scripts/ci_helpers.sh}"
 
 for PKG in /ci/*.[ai]pk; do
 	if [ $PKG_MANAGER = "opkg" ]; then
@@ -59,7 +59,7 @@ for PKG in /ci/*.[ai]pk; do
 		continue
 	fi
 
-	export PKG_NAME PKG_VERSION CI_HELPER
+	export PKG_NAME PKG_VERSION CI_HELPERS
 
 	if [ -f "$PRE_TEST_SCRIPT" ]; then
 		echo "Use package specific pre-test.sh"
