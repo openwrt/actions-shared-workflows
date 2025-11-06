@@ -57,6 +57,13 @@ jobs:
             runtime_test: true
 
     steps:
+      - name: Remove unused Android SDK, .NET, Swift, GHC
+        run: |
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /usr/local/.ghcup
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/share/swift
+
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
