@@ -9,7 +9,7 @@ on:
 jobs:
   determine_changed_files:
     name: Determine Changed Files
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     outputs:
       all_changed_files: ${{ steps.changed-files.outputs.all_changed_files }}
 

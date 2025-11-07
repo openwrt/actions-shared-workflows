@@ -8,7 +8,7 @@ jobs:
   set_target:
     if: startsWith(github.event.label.name, 'ci:kernel:')
     name: Set target
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     outputs:
       targets_subtargets: ${{ steps.set_target.outputs.targets_subtargets }}
       targets: ${{ steps.set_target.outputs.targets }}

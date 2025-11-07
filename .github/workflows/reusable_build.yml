@@ -79,7 +79,7 @@ permissions:
 jobs:
   setup_build:
     name: Set up build ${{ inputs.target }}/${{ inputs.subtarget }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     outputs:
       container: ${{ steps.determine_container.outputs.container }}
       ccache_tag: ${{ steps.determine_ccache_tag.outputs.ccache_tag }}
