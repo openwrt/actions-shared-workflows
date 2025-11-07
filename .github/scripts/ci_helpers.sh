@@ -1,7 +1,7 @@
 #!/bin/sh
 
 color_out() {
-	printf "\e[0;$1m$PKG_NAME: %s\e[0;0m\n" "$2"
+	printf "\e[0;$1m%s%s\e[0m\n" "${PKG_NAME:+$PKG_NAME: }" "$2"
 }
 
 success() {
