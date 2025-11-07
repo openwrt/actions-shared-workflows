@@ -21,7 +21,7 @@ permissions:
 jobs:
   setup_build:
     name: Set up build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     outputs:
       owner_lc: ${{ steps.lower_owner.outputs.owner_lc }}
       container_tag: ${{ steps.determine_tools_container.outputs.container_tag }}

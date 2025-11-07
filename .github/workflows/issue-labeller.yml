@@ -6,7 +6,7 @@ on:
 jobs:
   check-type:
     name: Parse Issue type
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
 
     outputs:
       issue_type: ${{ steps.parse_labels.outputs.type }}
@@ -36,7 +36,7 @@ jobs:
     name: Validate and Tag Bug Report
     needs: check-type
     if: needs.check-type.outputs.issue_type == 'bug-report'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
 
     permissions:
       issues: write
@@ -268,7 +268,7 @@ jobs:
   remove-labels:
     name: Remove Issue Labels
     needs: [ check-type, triage-bug-report ]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
 
     permissions:
       issues: write

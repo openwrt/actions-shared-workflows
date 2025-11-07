@@ -13,7 +13,7 @@ permissions:
 jobs:
   determine-container-info:
     name: Determine needed info to push containers
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     outputs:
       owner-lc: ${{ steps.generate-owner-lc.outputs.owner-lc }}
       container-tag: ${{ steps.determine-container-tag.outputs.container-tag }}

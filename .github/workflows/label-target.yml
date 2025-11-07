@@ -8,7 +8,7 @@ jobs:
   set_target:
     if: startsWith(github.event.label.name, 'ci:target:')
     name: Set target
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     outputs:
       target: ${{ steps.set_target.outputs.target }}
       subtarget: ${{ steps.set_target.outputs.subtarget }}
