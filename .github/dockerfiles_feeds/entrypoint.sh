@@ -8,17 +8,8 @@ mkdir -p /var/lock/
 mkdir -p /var/log/
 
 if [ $PKG_MANAGER = "opkg" ]; then
-	echo "src/gz packages_ci file:///ci" >> /etc/opkg/distfeeds.conf
-
-	FINGERPRINT="$(usign -F -p /ci/packages_ci.pub)"
-	cp /ci/packages_ci.pub "/etc/opkg/keys/$FINGERPRINT"
-
 	opkg update
 elif [ $PKG_MANAGER = "apk" ]; then
-	echo "/ci/packages.adb" >> /etc/apk/repositories.d/distfeeds.list
-
-	cp /ci/packages-ci-public.pem "/etc/apk/keys/"
-
 	apk update
 fi
 
