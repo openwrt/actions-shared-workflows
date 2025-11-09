@@ -25,7 +25,7 @@ for commit in $(git rev-list HEAD ^origin/"$BRANCH"); do
 		RET=1
 	fi
 
-	author_email="$(git show -s --format='%aE' "$commit")"
+	author_email="$(git show -s --format='<%aE>' "$commit")"
 	if echo "$author_email" | grep -qF "@users.noreply.github.com"; then
 		err "Author email cannot be a GitHub noreply email"
 		RET=1
