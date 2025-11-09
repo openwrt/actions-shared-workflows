@@ -98,35 +98,12 @@ jobs:
           echo "Building $PACKAGES"
           echo "PACKAGES=$PACKAGES" >> $GITHUB_ENV
 
-      - name: Generate OPKG build keys
-        if: ${{ env.BRANCH == 'openwrt-24.10' || env.BRANCH == 'openwrt-23.05' }}
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y signify-openbsd
-          signify-openbsd -G -n -c 'DO NOT USE - OpenWrt packages feed CI' -p packages_ci.pub -s packages_ci.sec
-          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
-          echo "KEY_BUILD<<$EOF" >> $GITHUB_ENV
-          cat packages_ci.sec >> $GITHUB_ENV
-          echo "$EOF" >> $GITHUB_ENV
-
-      - name: Generate APK build keys
-        if: ${{ env.BRANCH != 'openwrt-24.10' && env.BRANCH != 'openwrt-23.05' }}
-        run: |
-          openssl ecparam -name prime256v1 -genkey -noout -out packages-ci-private.pem
-          openssl ec -in packages-ci-private.pem -pubout > packages-ci-public.pem
-          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
-          echo "PRIVATE_KEY<<$EOF" >> $GITHUB_ENV
-          cat packages-ci-private.pem >> $GITHUB_ENV
-          echo "$EOF" >> $GITHUB_ENV
-
       - name: Build
         uses: openwrt/gh-action-sdk@v9
         env:
           ARCH: ${{ matrix.arch }}-${{ env.BRANCH }}
           FEEDNAME: packages_ci
           INDEX: 1
-          KEY_BUILD: ${{ env.KEY_BUILD }}
-          PRIVATE_KEY: ${{ env.PRIVATE_KEY }}
           V: s
 
       - name: Move created packages to project dir
