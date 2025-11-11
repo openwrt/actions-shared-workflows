@@ -2,6 +2,11 @@ name: Test Formalities
 
 on:
   workflow_call:
+    inputs:
+      exclude_weblate:
+        description: 'Exclude commits authored by Weblate from some checks'
+        required: false
+        type: boolean
 
 jobs:
   build:
@@ -31,3 +36,4 @@ jobs:
         run: workflow_context/.github/scripts/check_formalities.sh
         env:
           BRANCH: ${{ github.base_ref }}
+          EXCLUDE_WEBLATE: ${{ inputs.exclude_weblate }}

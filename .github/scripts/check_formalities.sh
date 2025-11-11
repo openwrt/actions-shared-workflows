@@ -24,6 +24,10 @@ is_weblate() {
 	echo "$1" | grep -iqF "$WEBLATE_EMAIL"
 }
 
+exclude_weblate() {
+	[ "$EXCLUDE_WEBLATE" = 'true' ]
+}
+
 check_name() {
 	local type="$1"
 	local name="$2"
@@ -59,7 +63,7 @@ check_subject() {
 	local author_email="$2"
 
 	# Check subject format
-	if echo "$subject" | grep -iq -e '^Translated using Weblate.*' -e '^Added translation using Weblate.*'; then
+	if exclude_weblate && echo "$subject" | grep -iq -e '^Translated using Weblate.*' -e '^Added translation using Weblate.*'; then
 		status_warn 'Commit subject line exception: authored by Weblate'
 	elif echo "$subject" | grep -q -e '^[0-9A-Za-z,+/_-]\+: [a-z]' -e '^Revert '; then
 		status_pass 'Commit subject line format seems OK'
@@ -81,7 +85,7 @@ check_subject() {
 		RET=1
 	fi
 
-	if is_weblate "$author_email"; then
+	if exclude_weblate && is_weblate "$author_email"; then
 		status_warn 'Commit subject line length exception: authored by Weblate'
 		return
 	fi
@@ -107,7 +111,7 @@ check_body() {
 	local author_email="$3"
 
 	# Check body line lengths
-	if ! is_weblate "$author_email"; then
+	if ! exclude_weblate || ! is_weblate "$author_email"; then
 		body_line_too_long=0
 		line_num=0
 		while IFS= read -r line; do
@@ -125,7 +129,7 @@ check_body() {
 
 	if echo "$body" | grep -qF "$sob"; then
 		status_pass 'Signed-off-by matches author'
-	elif is_weblate "$author_email"; then
+	elif exclude_weblate && is_weblate "$author_email"; then
 		status_warn 'Signed-off-by exception: authored by Weblate'
 	else
 		status_fail "Signed-off-by is missing or doesn't match author (should be '$sob')"
@@ -162,6 +166,13 @@ main() {
 	local commit
 	local committer_name
 	local subject
+
+	if exclude_weblate; then
+		warn "Weblate exceptions are enabled"
+	else
+		echo "Weblate exceptions are disabled"
+	fi
+	echo
 
 	for commit in $(git rev-list HEAD ^origin/"$BRANCH"); do
 		info "=== Checking commit '$commit'"
