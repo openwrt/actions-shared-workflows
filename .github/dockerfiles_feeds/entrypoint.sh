@@ -8,8 +8,10 @@ mkdir -p /var/lock/
 mkdir -p /var/log/
 
 if [ $PKG_MANAGER = "opkg" ]; then
+	echo "src/gz packages_ci file:///ci" >> /etc/opkg/distfeeds.conf
 	opkg update
 elif [ $PKG_MANAGER = "apk" ]; then
+	echo "/ci/packages.adb" >> /etc/apk/repositories.d/distfeeds.list
 	apk update
 fi
 
