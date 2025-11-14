@@ -8,6 +8,9 @@ MAX_BODY_LINE_LEN=75
 
 WEBLATE_EMAIL="<hosted@weblate.org>"
 
+EMOJI_WARN=':large_orange_diamond:'
+EMOJI_FAIL=':x:'
+
 RET=0
 
 if [ -f 'workflow_context/.github/scripts/ci_helpers.sh' ]; then
@@ -15,6 +18,48 @@ if [ -f 'workflow_context/.github/scripts/ci_helpers.sh' ]; then
 else
 	source .github/scripts/ci_helpers.sh
 fi
+
+# Use these global vars to improve header creation readability
+COMMIT=""
+HEADER_SET=0
+
+output() {
+	[ -f "$GITHUB_OUTPUT" ] || return
+
+	echo "$1" >> "$GITHUB_OUTPUT"
+}
+
+output_header() {
+	[ "$HEADER_SET" = 0 ] || return
+
+	[ -f "$GITHUB_OUTPUT" ] || return
+
+	cat >> "$GITHUB_OUTPUT" <<-HEADER
+
+	### Commit $COMMIT
+
+	HEADER
+
+	HEADER_SET=1
+}
+
+output_warn() {
+	output_header
+	output "- $EMOJI_WARN $1"
+	status_warn "$1"
+}
+
+output_fail_raw() {
+	output_header
+	output "$1"
+	status_fail "$1"
+}
+
+output_fail() {
+	output_header
+	output "- $EMOJI_FAIL $1"
+	status_fail "$1"
+}
 
 is_stable_branch() {
 	[ "$1" != "main" ] && [ "$1" != "master" ]
@@ -38,11 +83,11 @@ check_name() {
 		status_pass "$type name ($name) seems OK"
 	# Pattern \S\+ matches single names, typical of nicknames or handles
 	elif echo "$name" | grep -q '\S\+'; then
-		status_warn "$type name ($name) seems to be a nickname or an alias"
+		output_warn "$type name ($name) seems to be a nickname or an alias"
 	else
-		status_fail "$type name ($name) must be one of:"
-		echo "       - real name 'firstname lastname'"
-		echo '       - nickname/alias/handle'
+		output_fail "$type name ($name) must be one of:"
+		output_fail_raw "    - real name 'firstname lastname'"
+		output_fail_raw '    - nickname/alias/handle'
 		RET=1
 	fi
 }
@@ -51,7 +96,7 @@ check_author_email() {
 	local email="$1"
 
 	if echo "$email" | grep -qF "@users.noreply.github.com"; then
-		status_fail 'Author email cannot be a GitHub noreply email'
+		output_fail 'Author email cannot be a GitHub noreply email'
 		RET=1
 	else
 		status_pass 'Author email is not a GitHub noreply email'
@@ -68,24 +113,26 @@ check_subject() {
 	elif echo "$subject" | grep -q -e '^[0-9A-Za-z,+/_-]\+: [a-z]' -e '^Revert '; then
 		status_pass 'Commit subject line format seems OK'
 	elif echo "$subject" | grep -q -e '^[0-9A-Za-z,+/_-]\+: [A-Z]'; then
-		status_fail 'First word after prefix in subject should not be capitalized'
+		output_fail 'First word after prefix in subject should not be capitalized'
 		RET=1
 	elif echo "$subject" | grep -q -e '^[0-9A-Za-z,+/_-]\+: '; then
 		# Handles cases when there's a prefix but the check for capitalization
-		# status_fails (e.g. no word after prefix)
-		status_fail "Commit subject line MUST start with '<package name>: ' and be followed by a lower-case word"
+		# fails (e.g. no word after prefix)
+		output_fail 'Commit subject line MUST start with `<package name>: ` and be followed by a lower-case word'
 		RET=1
 	else
-		status_fail "Commit subject line MUST start with '<package name>: '"
+		output_fail 'Commit subject line MUST start with `<package name>: `'
 		RET=1
 	fi
 
 	if echo "$subject" | grep -q '\.$'; then
-		status_fail 'Commit subject line should not end with a period'
+		output_fail 'Commit subject line should not end with a period'
 		RET=1
 	fi
 
 	if exclude_weblate && is_weblate "$author_email"; then
+		# Don't append to the workflow output, since this is more of an internal
+		# warning.
 		status_warn 'Commit subject line length exception: authored by Weblate'
 		return
 	fi
@@ -94,11 +141,11 @@ check_subject() {
 	# otherwise for a soft limit which results in a warning. Show soft limit in
 	# either case.
 	if [ ${#subject} -gt "$MAX_SUBJECT_LEN_HARD" ]; then
-		status_fail "Commit subject line is longer than $MAX_SUBJECT_LEN_SOFT characters (is ${#subject})"
+		output_fail "Commit subject line is longer than $MAX_SUBJECT_LEN_SOFT characters (is ${#subject})"
 		split_fail "$MAX_SUBJECT_LEN_SOFT" "$subject"
 		RET=1
 	elif [ ${#subject} -gt "$MAX_SUBJECT_LEN_SOFT" ]; then
-		status_warn "Commit subject line is longer than $MAX_SUBJECT_LEN_SOFT characters (is ${#subject})"
+		output_warn "Commit subject line is longer than $MAX_SUBJECT_LEN_SOFT characters (is ${#subject})"
 		split_fail "$MAX_SUBJECT_LEN_SOFT" "$subject"
 	else
 		status_pass "Commit subject line is $MAX_SUBJECT_LEN_SOFT characters or less"
@@ -117,7 +164,8 @@ check_body() {
 		while IFS= read -r line; do
 			line_num=$((line_num + 1))
 			if [ ${#line} -gt "$MAX_BODY_LINE_LEN" ]; then
-				status_warn "Commit body line $line_num is longer than $MAX_BODY_LINE_LEN characters (is ${#line}):"
+				output_warn "Commit body line $line_num is longer than $MAX_BODY_LINE_LEN characters (is ${#line}):"
+				output "    $line"
 				split_fail "$MAX_BODY_LINE_LEN" "$line"
 				body_line_too_long=1
 			fi
@@ -128,25 +176,27 @@ check_body() {
 	fi
 
 	if echo "$body" | grep -qF "$sob"; then
-		status_pass 'Signed-off-by matches author'
+		status_pass '`Signed-off-by` matches author'
 	elif exclude_weblate && is_weblate "$author_email"; then
-		status_warn 'Signed-off-by exception: authored by Weblate'
+		# Don't append to the workflow output, since this is more of an internal
+		# warning.
+		status_warn '`Signed-off-by` exception: authored by Weblate'
 	else
-		status_fail "Signed-off-by is missing or doesn't match author (should be '$sob')"
+		output_fail "\`Signed-off-by\` is missing or doesn't match author (should be \`$sob\`)"
 		RET=1
 	fi
 
 	if echo "$body" | grep -qF "@users.noreply.github.com"; then
-		status_fail 'Signed-off-by email cannot be a GitHub noreply email'
+		output_fail '`Signed-off-by` email cannot be a GitHub noreply email'
 		RET=1
 	else
-		status_pass 'Signed-off-by email is not a GitHub noreply email'
+		status_pass '`Signed-off-by` email is not a GitHub noreply email'
 	fi
 
 	if echo "$body" | grep -qv "Signed-off-by:"; then
 		status_pass 'A commit message exists'
 	else
-		status_fail 'Commit message is missing. Please describe your changes.'
+		output_fail 'Commit message is missing. Please describe your changes.'
 		RET=1
 	fi
 
@@ -154,7 +204,7 @@ check_body() {
 		if echo "$body" | grep -qF "(cherry picked from commit"; then
 			status_pass "Commit is marked as cherry-picked"
 		else
-			status_warn "Commit on stable branch '$BRANCH' should be cherry-picked"
+			output_warn "Commit tog stable branch \`$BRANCH\` should be cherry-picked"
 		fi
 	fi
 }
@@ -167,6 +217,9 @@ main() {
 	local committer_name
 	local subject
 
+	# Initialize GitHub actions output
+	output 'content<<EOF'
+
 	if exclude_weblate; then
 		warn "Weblate exceptions are enabled"
 	else
@@ -175,9 +228,12 @@ main() {
 	echo
 
 	for commit in $(git rev-list HEAD ^origin/"$BRANCH"); do
+		HEADER_SET=0
+		COMMIT="$commit"
+
 		info "=== Checking commit '$commit'"
 		if git show --format='%P' -s "$commit" | grep -qF ' '; then
-			status_fail 'Pull request should not include merge commits'
+			output_fail 'Pull request should not include merge commits'
 			RET=1
 		fi
 
@@ -206,6 +262,8 @@ main() {
 		info "=== Done checking commit '$commit'"
 		echo
 	done
+
+	output 'EOF'
 
 	exit $RET
 }

@@ -7,13 +7,18 @@ on:
         description: 'Exclude commits authored by Weblate from some checks'
         required: false
         type: boolean
+      post_comment:
+        description: 'Post summaries to the pull request'
+        required: false
+        type: boolean
+
+permissions:
+  pull-requests: write
 
 jobs:
-  build:
+  formalities:
     name: Test Formalities
     runs-on: ubuntu-slim
-    strategy:
-      fail-fast: false
 
     steps:
       - name: Checkout source code
@@ -28,12 +33,30 @@ jobs:
           repository: openwrt/actions-shared-workflows
           path: workflow_context
           sparse-checkout: |
-            .github/scripts/ci_helpers.sh
             .github/scripts/check_formalities.sh
+            .github/scripts/ci_helpers.sh
+            .github/scripts/process_formalities.js
           sparse-checkout-cone-mode: false
 
       - name: Test formalities
+        id: formalities
         run: workflow_context/.github/scripts/check_formalities.sh
         env:
           BRANCH: ${{ github.base_ref }}
           EXCLUDE_WEBLATE: ${{ inputs.exclude_weblate }}
+
+      - name: Process GitHub formality check results
+        if: always() && inputs.post_comment == true
+        uses: actions/github-script@v8
+        env:
+          JOB_ID: ${{ job.check_run_id }}
+          SUMMARY: ${{ steps.formalities.outputs.content }}
+        with:
+          script: |
+            const processFormalities = require('./workflow_context/.github/scripts/process_formalities.js')
+            await processFormalities({
+              github,
+              context,
+              jobId:   process.env.JOB_ID,
+              summary: process.env.SUMMARY,
+            });
