@@ -2,6 +2,11 @@ name: Test Formalities
 
 on:
   workflow_call:
+    inputs:
+      exclude_weblate:
+        description: 'Exclude commits authored by Weblate from some checks'
+        required: false
+        type: boolean
 
 jobs:
   build:
@@ -27,11 +32,8 @@ jobs:
             .github/scripts/check_formalities.sh
           sparse-checkout-cone-mode: false
 
-      - name: Determine branch name
-        run: |
-          BRANCH="${GITHUB_BASE_REF#refs/heads/}"
-          echo "Building for $BRANCH"
-          echo "BRANCH=$BRANCH" >> $GITHUB_ENV
-
       - name: Test formalities
         run: workflow_context/.github/scripts/check_formalities.sh
+        env:
+          BRANCH: ${{ github.base_ref }}
+          EXCLUDE_WEBLATE: ${{ inputs.exclude_weblate }}
