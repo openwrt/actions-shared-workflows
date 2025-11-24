@@ -80,7 +80,7 @@ jobs:
 
     steps:
       - name: Checkout master directory
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           path: openwrt
 

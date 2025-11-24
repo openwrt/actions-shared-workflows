@@ -12,13 +12,13 @@ jobs:
 
     steps:
       - name: Checkout source code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
       - name: Checkout formalities
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           repository: openwrt/actions-shared-workflows
           path: workflow_context

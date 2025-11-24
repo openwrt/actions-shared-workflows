@@ -64,7 +64,7 @@ jobs:
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /usr/share/swift
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -208,7 +208,7 @@ jobs:
 
       - name: Checkout
         if: ${{ matrix.runtime_test && fromJSON(env.HAVE_PKGS) }}
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           repository: openwrt/actions-shared-workflows
           path: dockerfiles_feeds
