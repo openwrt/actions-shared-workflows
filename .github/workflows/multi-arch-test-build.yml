@@ -2,6 +2,13 @@ name: Feeds Package Test Build
 
 on:
   workflow_call:
+    inputs:
+      enable_generic_tests:
+        type: boolean
+        default: true
+      force_generic_tests:
+        type: boolean
+        default: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -241,6 +248,8 @@ jobs:
         if: ${{ matrix.runtime_test && fromJSON(env.HAVE_PKGS) }}
         run: |
           docker run \
+            -e ENABLE_GENERIC_TESTS=${{ inputs.enable_generic_tests }} \
+            -e FORCE_GENERIC_TESTS=${{ inputs.force_generic_tests }} \
             -e PKG_MANAGER=${{ env.PKG_MANAGER }} \
             --platform linux/${{ matrix.arch }} \
             --rm \
