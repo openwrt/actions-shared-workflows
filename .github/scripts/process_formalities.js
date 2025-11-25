@@ -41,11 +41,11 @@ const SUMMARY_HEADER=`
 <summary>Failed checks</summary>
 
 Issues marked with an :x: are failing checks.
-`
+`;
 
 const SUMMARY_FOOTER=`
 </details>
-`
+`;
 
 async function hideOldSummaries({ github, owner, repo, issueNumber }) {
   const result = await github.graphql(GET_COMMENTS_QUERY, { owner, repo, issueNumber });
@@ -61,17 +61,19 @@ async function hideOldSummaries({ github, owner, repo, issueNumber }) {
   }
 }
 
-function getJobUrl({ context, jobId  }) {
-  return `https://github.com/GeorgeSapkin/openwrt-packages/actions/runs/${context.runId}/job/${jobId}?pr=${context.issue.number}#${STEP_ANCHOR}`;
+function getJobUrl({ context, jobId }) {
+  return `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}/job/${jobId}?pr=${context.issue.number}#${STEP_ANCHOR}`;
 }
 
 function getSummaryMessage({ context, jobId, summary }) {
   return `
   ${SUMMARY_HEADER}
+
   ${summary}
+
   ${SUMMARY_FOOTER}
   For more details, see the [full job log](${getJobUrl({ context, jobId })}).
-  `
+  `;
 }
 
 async function processFormalities({ github, context, jobId, summary }) {
@@ -80,6 +82,11 @@ async function processFormalities({ github, context, jobId, summary }) {
 
   await hideOldSummaries({ github, owner, repo, issueNumber });
 
+  summary = summary.trim();
+  if (summary.length === 0) {
+    return;
+  }
+
   console.log("Posting new summary comment");
   const body = getSummaryMessage({ context, jobId, summary });
   return github.rest.issues.createComment({
@@ -87,7 +94,7 @@ async function processFormalities({ github, context, jobId, summary }) {
     owner,
     repo,
     body,
-  })
+  });
 }
 
 module.exports = processFormalities;
