@@ -11,6 +11,10 @@ on:
         description: 'Post summaries to the pull request'
         required: false
         type: boolean
+      warn_on_no_modify:
+        description: 'Warn when PR edits by maintainers are not allowed. Requires post_comment to be true.'
+        required: false
+        type: boolean
 
 permissions:
   pull-requests: write
@@ -51,12 +55,14 @@ jobs:
         env:
           JOB_ID: ${{ job.check_run_id }}
           SUMMARY: ${{ steps.formalities.outputs.content }}
+          WARN_ON_NO_MODIFY: ${{ inputs.warn_on_no_modify }}
         with:
           script: |
             const processFormalities = require('./workflow_context/.github/scripts/process_formalities.js')
             await processFormalities({
               github,
               context,
-              jobId:   process.env.JOB_ID,
+              jobId: process.env.JOB_ID,
               summary: process.env.SUMMARY,
+              warnOnNoModify: process.env.WARN_ON_NO_MODIFY,
             });

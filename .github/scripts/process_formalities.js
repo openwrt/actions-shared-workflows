@@ -28,12 +28,12 @@ const MINIMIZE_COMMENT_MUTATION = `
   }
 `;
 
-const COMMENT_LOOKUP = "Some formality checks failed.";
+const COMMENT_LOOKUP = "<!-- FORMALITY_LOOKUP -->";
 
 const SUMMARY_HEADER=`
 > [!WARNING]
 >
-> ${COMMENT_LOOKUP}
+> Some formality checks failed.
 >
 > Consider (re)reading [submissions guidelines](https://openwrt.org/submitting-patches#submission_guidelines).
 
@@ -45,6 +45,14 @@ Issues marked with an :x: are failing checks.
 
 const SUMMARY_FOOTER=`
 </details>
+`;
+
+const NO_MODIFY=`
+> [!TIP]
+>
+> PR has _Allow edits and access to secrets by maintainers_ disabled. Consider allowing edits to simplify review.
+>
+> [More info](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/allowing-changes-to-a-pull-request-branch-created-from-a-fork)
 `;
 
 async function hideOldSummaries({ github, owner, repo, issueNumber }) {
@@ -68,27 +76,42 @@ function getJobUrl({ context, jobId }) {
 function getSummaryMessage({ context, jobId, summary }) {
   return `
   ${SUMMARY_HEADER}
-
   ${summary}
-
   ${SUMMARY_FOOTER}
   For more details, see the [full job log](${getJobUrl({ context, jobId })}).
   `;
 }
 
-async function processFormalities({ github, context, jobId, summary }) {
-  const { owner, repo } = context.repo;
-  const issueNumber = context.issue.number;
+function getCommentMessage({ context, jobId, noModify, summary }) {
+  return `
+  ${summary.length > 0 ? getSummaryMessage({ context, jobId, summary }) : ''}
+  ${noModify ? NO_MODIFY : ''}
+  ${COMMENT_LOOKUP}
+  `;
+}
+
+async function processFormalities({
+  context,
+  github,
+  jobId,
+  summary,
+  warnOnNoModify,
+}) {
+  const { owner, repo, number: issueNumber } = context.issue;
 
   await hideOldSummaries({ github, owner, repo, issueNumber });
 
+  // Explicitly check maintainer_can_modify as it might not be set at all
+  const { pull_request: pr } = context.payload.pull_request;
+  const noModify = warnOnNoModify && pr?.maintainer_can_modify === false;
   summary = summary.trim();
-  if (summary.length === 0) {
+  if (summary.length === 0 && !noModify) {
+    console.log('Summary is empty and modify checks passed, skipping posting a comment');
     return;
   }
 
   console.log("Posting new summary comment");
-  const body = getSummaryMessage({ context, jobId, summary });
+  const body = getCommentMessage({ context, jobId, noModify, summary });
   return github.rest.issues.createComment({
     issue_number: issueNumber,
     owner,
