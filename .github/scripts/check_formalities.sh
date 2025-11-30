@@ -140,15 +140,16 @@ check_subject() {
 	# Check subject length first for hard limit which results in an error and
 	# otherwise for a soft limit which results in a warning. Show soft limit in
 	# either case.
+	local msg="Commit subject length: recommended max $MAX_SUBJECT_LEN_SOFT, required max $MAX_SUBJECT_LEN_HARD characters"
 	if [ ${#subject} -gt "$MAX_SUBJECT_LEN_HARD" ]; then
-		output_fail "Commit subject line is longer than $MAX_SUBJECT_LEN_SOFT characters (is ${#subject})"
+		output_fail "$msg"
 		split_fail "$MAX_SUBJECT_LEN_SOFT" "$subject"
 		RET=1
 	elif [ ${#subject} -gt "$MAX_SUBJECT_LEN_SOFT" ]; then
-		output_warn "Commit subject line is longer than $MAX_SUBJECT_LEN_SOFT characters (is ${#subject})"
+		output_warn "$msg"
 		split_fail "$MAX_SUBJECT_LEN_SOFT" "$subject"
 	else
-		status_pass "Commit subject line is $MAX_SUBJECT_LEN_SOFT characters or less"
+		status_pass "$msg"
 	fi
 }
 
