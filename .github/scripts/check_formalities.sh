@@ -194,7 +194,7 @@ check_body() {
 		status_pass '`Signed-off-by` email is not a GitHub noreply email'
 	fi
 
-	if echo "$body" | grep -qv "Signed-off-by:"; then
+	if echo "$body" | grep -v "Signed-off-by:" | grep -qv '^[[:space:]]*$'; then
 		status_pass 'A commit message exists'
 	else
 		output_fail 'Commit message is missing. Please describe your changes.'
