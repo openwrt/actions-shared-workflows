@@ -110,12 +110,12 @@ check_subject() {
 	# Check subject format
 	if exclude_weblate && echo "$subject" | grep -iq -e '^Translated using Weblate.*' -e '^Added translation using Weblate.*'; then
 		status_warn 'Commit subject line exception: authored by Weblate'
-	elif echo "$subject" | grep -q -e '^[0-9A-Za-z,+/_-]\+: [a-z]' -e '^Revert '; then
+	elif echo "$subject" | grep -qE -e '^([0-9A-Za-z,+/._-]+: )+[a-z]' -e '^Revert '; then
 		status_pass 'Commit subject line format seems OK'
-	elif echo "$subject" | grep -q -e '^[0-9A-Za-z,+/_-]\+: [A-Z]'; then
+	elif echo "$subject" | grep -qE -e '^([0-9A-Za-z,+/._-]+: )+[A-Z]'; then
 		output_fail 'First word after prefix in subject should not be capitalized'
 		RET=1
-	elif echo "$subject" | grep -q -e '^[0-9A-Za-z,+/_-]\+: '; then
+	elif echo "$subject" | grep -qE -e '^([0-9A-Za-z,+/._-]+: )+'; then
 		# Handles cases when there's a prefix but the check for capitalization
 		# fails (e.g. no word after prefix)
 		output_fail 'Commit subject line MUST start with `<package name>: ` and be followed by a lower-case word'
