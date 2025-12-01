@@ -9,6 +9,10 @@ mkdir -p /var/log/
 
 if [ $PKG_MANAGER = "opkg" ]; then
 	echo "src/gz packages_ci file:///ci" >> /etc/opkg/distfeeds.conf
+	# Disable checking signature for all opkg feeds, since it doesn't look like
+	# it's possible to do it for the local feed only, which has signing removed.
+	# This fixes running CI tests.
+	sed -i '/check_signature/d' /etc/opkg.conf
 	opkg update
 elif [ $PKG_MANAGER = "apk" ]; then
 	echo "/ci/packages.adb" >> /etc/apk/repositories.d/distfeeds.list
