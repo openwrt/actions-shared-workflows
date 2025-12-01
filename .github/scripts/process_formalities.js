@@ -20,6 +20,8 @@ const GET_COMMENTS_QUERY = `query($owner: String!, $repo: String!, $issueNumber:
   }
 }`;
 
+// BUG: Classifiers are broken and they do nothing, but they must be set.
+//      https://github.com/orgs/community/discussions/19865
 const MINIMIZE_COMMENT_MUTATION = `
   mutation($id: ID!) {
     minimizeComment(input: {subjectId: $id, classifier: OUTDATED}) {
@@ -35,7 +37,8 @@ const SUMMARY_HEADER=`
 >
 > Some formality checks failed.
 >
-> Consider (re)reading [submissions guidelines](https://openwrt.org/submitting-patches#submission_guidelines).
+> Consider (re)reading [submissions guidelines](
+https://openwrt.org/submitting-patches#submission_guidelines).
 
 <details>
 <summary>Failed checks</summary>
@@ -52,7 +55,13 @@ const NO_MODIFY=`
 >
 > PR has _Allow edits and access to secrets by maintainers_ disabled. Consider allowing edits to simplify review.
 >
-> [More info](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/allowing-changes-to-a-pull-request-branch-created-from-a-fork)
+> [More info](
+https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/allowing-changes-to-a-pull-request-branch-created-from-a-fork)
+`;
+
+const FEEDBACK=`
+Something broken? Consider [providing feedback](
+https://github.com/openwrt/actions-shared-workflows/issues).
 `;
 
 async function hideOldSummaries({ github, owner, repo, issueNumber }) {
@@ -86,6 +95,7 @@ function getCommentMessage({ context, jobId, noModify, summary }) {
   return `
   ${summary.length > 0 ? getSummaryMessage({ context, jobId, summary }) : ''}
   ${noModify ? NO_MODIFY : ''}
+  ${FEEDBACK}
   ${COMMENT_LOOKUP}
   `;
 }

@@ -225,6 +225,12 @@ main() {
 	# Initialize GitHub actions output
 	output 'content<<EOF'
 
+	cat <<-EOF
+	Something broken? Consider providing feedback:
+	https://github.com/openwrt/actions-shared-workflows/issues
+
+	EOF
+
 	if exclude_weblate; then
 		warn "Weblate exceptions are enabled"
 	else
