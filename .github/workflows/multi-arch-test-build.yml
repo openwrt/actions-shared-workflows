@@ -166,7 +166,7 @@ jobs:
 
       - name: Store packages
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: ${{env.ARCHIVE_NAME}}-packages
           path: |
@@ -179,7 +179,7 @@ jobs:
 
       - name: Store logs
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: ${{env.ARCHIVE_NAME}}-logs
           path: |
