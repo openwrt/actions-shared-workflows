@@ -6,7 +6,8 @@ MAX_SUBJECT_LEN_HARD=60
 MAX_SUBJECT_LEN_SOFT=50
 MAX_BODY_LINE_LEN=75
 
-WEBLATE_EMAIL="<hosted@weblate.org>"
+GITHUB_NOREPLY_EMAIL='@users.noreply.github.com'
+WEBLATE_EMAIL='<hosted@weblate.org>'
 
 EMOJI_WARN=':large_orange_diamond:'
 EMOJI_FAIL=':x:'
@@ -96,14 +97,15 @@ check_name() {
 	fi
 }
 
-check_author_email() {
-	local email="$1"
+check_email() {
+	local type="$1"
+	local email="$2"
 
-	if echo "$email" | grep -qF "@users.noreply.github.com"; then
-		output_fail 'Author email cannot be a GitHub noreply email'
+	if echo "$email" | grep -qF "$GITHUB_NOREPLY_EMAIL"; then
+		output_fail "$type email cannot be a GitHub noreply email"
 		RET=1
 	else
-		status_pass 'Author email is not a GitHub noreply email'
+		status_pass "$type email is not a GitHub noreply email"
 	fi
 }
 
@@ -191,7 +193,7 @@ check_body() {
 		RET=1
 	fi
 
-	if echo "$body" | grep -qF "@users.noreply.github.com"; then
+	if echo "$body" | grep -qF "$GITHUB_NOREPLY_EMAIL"; then
 		output_fail '`Signed-off-by` email cannot be a GitHub noreply email'
 		RET=1
 	else
@@ -250,11 +252,12 @@ main() {
 
 		author_name="$(git "${REPO_PATH[@]}" show -s --format=%aN "$commit")"
 		committer_name="$(git "${REPO_PATH[@]}" show -s --format=%cN "$commit")"
-		check_name "Author" "$author_name"
-		check_name "Committer" "$committer_name"
-
 		author_email="$(git "${REPO_PATH[@]}" show -s --format='<%aE>' "$commit")"
-		check_author_email "$author_email"
+		committer_email="$(git "${REPO_PATH[@]}" show -s --format='<%cE>' "$commit")"
+		check_name 'Author' "$author_name"
+		check_email 'Author' "$author_email"
+		check_name 'Committer' "$committer_name"
+		check_email 'Committer' "$committer_email"
 
 		subject="$(git "${REPO_PATH[@]}" show -s --format=%s "$commit")"
 		echo
