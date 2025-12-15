@@ -3,6 +3,11 @@ name: Test Formalities
 on:
   workflow_call:
     inputs:
+      exclude_dependabot:
+        description: 'Exclude commits authored by dependabot from some checks'
+        default: true
+        required: false
+        type: boolean
       exclude_weblate:
         description: 'Exclude commits authored by Weblate from some checks'
         required: false
@@ -47,6 +52,7 @@ jobs:
         run: workflow_context/.github/scripts/check_formalities.sh
         env:
           BRANCH: ${{ github.base_ref }}
+          EXCLUDE_DEPENDABOT: ${{ inputs.exclude_dependabot }}
           EXCLUDE_WEBLATE: ${{ inputs.exclude_weblate }}
 
       - name: Process GitHub formality check results

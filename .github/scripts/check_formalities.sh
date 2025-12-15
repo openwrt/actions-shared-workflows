@@ -6,6 +6,7 @@ MAX_SUBJECT_LEN_HARD=60
 MAX_SUBJECT_LEN_SOFT=50
 MAX_BODY_LINE_LEN=75
 
+DEPENDABOT_EMAIL="dependabot[bot]@users.noreply.github.com"
 GITHUB_NOREPLY_EMAIL='@users.noreply.github.com'
 WEBLATE_EMAIL='<hosted@weblate.org>'
 
@@ -70,8 +71,16 @@ is_stable_branch() {
 	[ "$1" != "main" ] && [ "$1" != "master" ]
 }
 
+is_dependabot() {
+	echo "$1" | grep -iqF "$DEPENDABOT_EMAIL"
+}
+
 is_weblate() {
 	echo "$1" | grep -iqF "$WEBLATE_EMAIL"
+}
+
+exclude_dependabot() {
+	[ "$EXCLUDE_DEPENDABOT" = 'true' ]
 }
 
 exclude_weblate() {
@@ -81,10 +90,15 @@ exclude_weblate() {
 check_name() {
 	local type="$1"
 	local name="$2"
+	local email="$3"
 
+	if exclude_dependabot && is_dependabot "$email"; then
+		status_warn "$type email exception: authored by dependabot"
+	elif exclude_weblate && is_weblate "$email"; then
+		status_warn "$type email exception: authored by Weblate"
 	# Pattern \S\+\s\+\S\+ matches >= 2 names i.e. 3 and more e.g. "John Von
 	# Doe" also match
-	if echo "$name" | grep -q '\S\+\s\+\S\+'; then
+	elif echo "$name" | grep -q '\S\+\s\+\S\+'; then
 		status_pass "$type name ($name) seems OK"
 	# Pattern \S\+ matches single names, typical of nicknames or handles
 	elif echo "$name" | grep -q '\S\+'; then
@@ -101,7 +115,11 @@ check_email() {
 	local type="$1"
 	local email="$2"
 
-	if echo "$email" | grep -qF "$GITHUB_NOREPLY_EMAIL"; then
+	if exclude_dependabot && is_dependabot "$email"; then
+		status_warn "$type email exception: authored by dependabot"
+	elif exclude_weblate && is_weblate "$email"; then
+		status_warn "$type email exception: authored by Weblate"
+	elif echo "$email" | grep -qF "$GITHUB_NOREPLY_EMAIL"; then
 		output_fail "$type email cannot be a GitHub noreply email"
 		RET=1
 	else
@@ -114,7 +132,9 @@ check_subject() {
 	local author_email="$2"
 
 	# Check subject format
-	if exclude_weblate && echo "$subject" | grep -iq -e '^Translated using Weblate.*' -e '^Added translation using Weblate.*'; then
+	if exclude_dependabot && is_dependabot "$author_email"; then
+		status_warn 'Commit subject line exception: authored by dependabot'
+	elif exclude_weblate && is_weblate "$author_email"; then
 		status_warn 'Commit subject line exception: authored by Weblate'
 	elif echo "$subject" | grep -qE -e '^([0-9A-Za-z,+/._-]+: )+[a-z]' -e '^Revert '; then
 		status_pass 'Commit subject line format seems OK'
@@ -136,9 +156,12 @@ check_subject() {
 		RET=1
 	fi
 
-	if exclude_weblate && is_weblate "$author_email"; then
-		# Don't append to the workflow output, since this is more of an internal
-		# warning.
+	# Don't append to the workflow output, since these are more of internal
+	# warnings.
+	if exclude_dependabot && is_dependabot "$author_email"; then
+		status_warn 'Commit subject line length exception: authored by dependabot'
+		return
+	elif exclude_weblate && is_weblate "$author_email"; then
 		status_warn 'Commit subject line length exception: authored by Weblate'
 		return
 	fi
@@ -165,7 +188,7 @@ check_body() {
 	local author_email="$3"
 
 	# Check body line lengths
-	if ! exclude_weblate || ! is_weblate "$author_email"; then
+	if ! { exclude_weblate && is_weblate "$author_email"; } && ! { exclude_dependabot && is_dependabot "$author_email"; }; then
 		body_line_too_long=0
 		line_num=0
 		while IFS= read -r line; do
@@ -180,24 +203,36 @@ check_body() {
 		if [ "$body_line_too_long" = 0 ]; then
 			status_pass "Commit body lines are $MAX_BODY_LINE_LEN characters or less"
 		fi
+	else
+		if exclude_dependabot && is_dependabot "$author_email"; then
+			status_warn 'Commit body line length exception: authored by dependabot'
+		elif exclude_weblate && is_weblate "$author_email"; then
+			status_warn 'Commit body line length exception: authored by Weblate'
+		fi
 	fi
 
 	if echo "$body" | grep -qF "$sob"; then
 		status_pass '`Signed-off-by` matches author'
+
+	# Don't append to the workflow output, since these are more of internal
+	# warnings.
+	elif exclude_dependabot && is_dependabot "$author_email"; then
+		status_warn '`Signed-off-by` exception: authored by dependabot'
 	elif exclude_weblate && is_weblate "$author_email"; then
-		# Don't append to the workflow output, since this is more of an internal
-		# warning.
 		status_warn '`Signed-off-by` exception: authored by Weblate'
+
 	else
 		output_fail "\`Signed-off-by\` is missing or doesn't match author (should be \`$sob\`)"
 		RET=1
 	fi
 
-	if echo "$body" | grep -qF "$GITHUB_NOREPLY_EMAIL"; then
-		output_fail '`Signed-off-by` email cannot be a GitHub noreply email'
-		RET=1
-	else
-		status_pass '`Signed-off-by` email is not a GitHub noreply email'
+	if ! ( exclude_dependabot && is_dependabot "$author_email" ) && ! ( exclude_weblate && is_weblate "$author_email" ); then
+		if echo "$body" | grep -qF "$GITHUB_NOREPLY_EMAIL"; then
+			output_fail '`Signed-off-by` email cannot be a GitHub noreply email'
+			RET=1
+		else
+			status_pass '`Signed-off-by` email is not a GitHub noreply email'
+		fi
 	fi
 
 	if echo "$body" | grep -v "Signed-off-by:" | grep -qv '^[[:space:]]*$'; then
@@ -233,10 +268,16 @@ main() {
 
 	EOF
 
-	if exclude_weblate; then
-		warn "Weblate exceptions are enabled"
+	if exclude_dependabot; then
+		warn 'dependabot exceptions are enabled'
 	else
-		echo "Weblate exceptions are disabled"
+		echo 'dependabot exceptions are disabled'
+	fi
+
+	if exclude_weblate; then
+		warn 'Weblate exceptions are enabled'
+	else
+		echo 'Weblate exceptions are disabled'
 	fi
 	echo
 
@@ -254,9 +295,9 @@ main() {
 		committer_name="$(git "${REPO_PATH[@]}" show -s --format=%cN "$commit")"
 		author_email="$(git "${REPO_PATH[@]}" show -s --format='<%aE>' "$commit")"
 		committer_email="$(git "${REPO_PATH[@]}" show -s --format='<%cE>' "$commit")"
-		check_name 'Author' "$author_name"
+		check_name 'Author' "$author_name" "$author_email"
 		check_email 'Author' "$author_email"
-		check_name 'Committer' "$committer_name"
+		check_name 'Committer' "$committer_name" "$committer_email"
 		check_email 'Committer' "$committer_email"
 
 		subject="$(git "${REPO_PATH[@]}" show -s --format=%s "$commit")"
