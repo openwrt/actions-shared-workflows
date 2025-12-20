@@ -3,10 +3,17 @@
 name: Build kernel and check patches for target specified in labels
 on:
   workflow_call:
+    inputs:
+      target:
+        type: string
+      subtarget:
+        type: string
+      testing:
+        type: boolean
 
 jobs:
   set_target:
-    if: startsWith(github.event.label.name, 'ci:kernel:')
+    if: startsWith(github.event.label.name, 'ci:kernel:') || inputs.target != ''
     name: Set target
     runs-on: ubuntu-slim
     outputs:
@@ -22,9 +29,30 @@ jobs:
         env:
           CI_EVENT_LABEL_NAME: ${{ github.event.label.name }}
         run: |
-          echo "$CI_EVENT_LABEL_NAME" | sed -n 's/ci:kernel:\([^:]*\):\([^:]*\):*\([^:]*\)$/target=\1/p' | tee --append $GITHUB_OUTPUT
-          echo "$CI_EVENT_LABEL_NAME" | sed -n 's/ci:kernel:\([^:]*\):\([^:]*\):*\([^:]*\)$/subtarget=\2/p' | tee --append $GITHUB_OUTPUT
-          echo "$CI_EVENT_LABEL_NAME" | sed -n 's/ci:kernel:\([^:]*\):\([^:]*\):*\([^:]*\)$/testing=\3/p' | tee --append $GITHUB_OUTPUT
+          if [ -n "${{ inputs.target}}" ]; then
+            target="${{ inputs.target }}"
+          else
+            target=$(echo "$CI_EVENT_LABEL_NAME" | sed -n 's/ci:kernel:\([^:]*\):\([^:]*\):*\([^:]*\)$/\1/p')
+          fi
+
+          if [ -n "${{ inputs.subtarget}}" ]; then
+            subtarget="${{ inputs.subtarget }}"
+          else
+            subtarget=$(echo "$CI_EVENT_LABEL_NAME" | sed -n 's/ci:kernel:\([^:]*\):\([^:]*\):*\([^:]*\)$/\2/p')
+          fi
+
+          if [ -n "${{ inputs.testing}}" ]; then
+            testing="${{ inputs.testing }}"
+          else
+            testing=$(echo "$CI_EVENT_LABEL_NAME" | sed -n 's/ci:kernel:\([^:]*\):\([^:]*\):*\([^:]*\)$/\3/p')
+          fi
+
+          echo "Setting target as $target, subtarget as $subtarget, testing as $testing"
+          {
+            echo "target=$target"
+            echo "subtarget=$subtarget"
+            echo "testing=$testing"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Set targets
         id: set_target
