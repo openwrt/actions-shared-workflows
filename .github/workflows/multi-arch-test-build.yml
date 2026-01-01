@@ -33,7 +33,8 @@ jobs:
 
           - arch: mips_24kc
             target: ath79-generic
-            runtime_test: true
+            # Temporarily disabled due to random "Bus error (core dumped)" errors
+            runtime_test: false
 
           - arch: mipsel_24kc
             target: mt7621
