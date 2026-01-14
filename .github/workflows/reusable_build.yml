@@ -272,7 +272,9 @@ jobs:
     needs: setup_build
     runs-on: ubuntu-latest
 
-    container: ghcr.io/${{ needs.setup_build.outputs.container }}
+    container:
+      image: ghcr.io/${{ needs.setup_build.outputs.container }}
+      options: --privileged --pid=host
 
     permissions:
       contents: read
@@ -280,6 +282,16 @@ jobs:
       actions: write
 
     steps:
+      - name: Free up some space in Host Github Image
+        shell: sh -c "nsenter -t 1 -a sh -e /home/runner/$(echo {0} | sed s#^/__w#work#)"
+        env:
+          DELETE_DIR: /usr/local/lib/android /usr/local/.ghcup /usr/share/dotnet /usr/share/swift
+        run: |
+          mkdir /empty
+          for dir in $DELETE_DIR; do
+            sudo rsync -a --delete /empty/ $dir
+          done
+
       - name: Checkout master directory
         uses: actions/checkout@v6
         with:
