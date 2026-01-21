@@ -384,7 +384,7 @@ jobs:
           fi
 
           echo "TOOLCHAIN_FILE=$TOOLCHAIN_FILE" >> "$GITHUB_ENV"
-          echo "TOOLCHAIN_NAME=$(echo TOOLCHAIN_FILE | sed -E -e 's/.tar.(xz|zst)$//')" >> "$GITHUB_ENV"
+          echo "TOOLCHAIN_NAME=$(echo $TOOLCHAIN_FILE | sed -E -e 's/.tar.(xz|zst)$//')" >> "$GITHUB_ENV"
 
       - name: Prase prebuilt llvm file
         if: inputs.build_toolchain == false
