@@ -246,7 +246,7 @@ check_body() {
 		if echo "$body" | grep -qF "(cherry picked from commit"; then
 			status_pass "Commit is marked as cherry-picked"
 		else
-			output_warn "Commit tog stable branch \`$BRANCH\` should be cherry-picked"
+			output_warn "Commit to stable branch \`$BRANCH\` should be cherry-picked"
 		fi
 	fi
 }
