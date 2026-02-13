@@ -44,9 +44,37 @@ jobs:
       build_all_kmods: true
       build_all_modules: true
       build_full: true
+      upload_images: true
       ccache_type: packages
       upload_ccache_cache: ${{ github.repository_owner == 'openwrt' }}
       check_packages_list: ${{ needs.determine_changed_packages.outputs.changed_packages }}
+
+  test:
+    name: Test with QEMU
+    needs: build
+    strategy:
+      fail-fast: False
+      matrix:
+        include:
+          - target: malta
+            subtarget: be
+            image: openwrt-malta-be-vmlinux-initramfs.elf
+            use_qemu: true
+            qemu_target: mips
+          - target: x86
+            subtarget: 64
+            image: openwrt-x86-64-generic-squashfs-combined.img
+            use_qemu: true
+            qemu_target: x86
+            qemu_bin: x86_64
+    uses: ./.github/workflows/reusable_test-image.yml
+    with:
+      target: ${{ matrix.target }}
+      subtarget: ${{ matrix.subtarget }}
+      image: ${{ matrix.image }}
+      use_qemu: ${{ matrix.use_qemu }}
+      qemu_target: ${{ matrix.qemu_target }}
+      qemu_bin: ${{ matrix.qemu_bin || '' }}
 
   upload-ccache-cache-in-s3:
     if: github.event_name == 'push' && github.repository_owner == 'openwrt'
