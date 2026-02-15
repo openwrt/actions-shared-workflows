@@ -2,6 +2,13 @@ name: Feeds Package Test Build
 
 on:
   workflow_call:
+    inputs:
+      enable_generic_tests:
+        type: boolean
+        default: true
+      force_generic_tests:
+        type: boolean
+        default: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -214,31 +221,38 @@ jobs:
           sudo apt-get install -y qemu-user-static binfmt-support
           sudo update-binfmts --import
 
-      - name: Checkout
+      - name: Checkout test scripts
         if: ${{ matrix.runtime_test && fromJSON(env.HAVE_PKGS) }}
         uses: actions/checkout@v6
         with:
           repository: openwrt/actions-shared-workflows
-          path: dockerfiles_feeds
+          path: workflow_context
           sparse-checkout: |
             .github/scripts/ci_helpers.sh
-            .github/dockerfiles_feeds/Dockerfile
-            .github/dockerfiles_feeds/entrypoint.sh
+            .github/dockerfiles/Dockerfile.feeds
+            .github/scripts/test_entrypoint.sh
           sparse-checkout-cone-mode: false
 
       - name: Build Docker container
         if: ${{ matrix.runtime_test && fromJSON(env.HAVE_PKGS) }}
         run: |
-          docker build --platform linux/${{ matrix.arch }} -t test-container \
-            --build-arg ARCH dockerfiles_feeds/.github/dockerfiles_feeds/
+          docker build \
+            --build-arg ARCH \
+            --file workflow_context/.github/dockerfiles/Dockerfile.feeds \
+            --platform linux/${{ matrix.arch }} \
+            --tag test-container \
+            workflow_context/.github
         env:
           ARCH: ${{ matrix.arch }}-${{ env.BRANCH }}
 
       - name: Test via Docker container
         if: ${{ matrix.runtime_test && fromJSON(env.HAVE_PKGS) }}
         run: |
-          docker run --platform linux/${{ matrix.arch }} --rm -v $GITHUB_WORKSPACE:/ci \
-            -v $GITHUB_WORKSPACE/dockerfiles_feeds:/dockerfiles_feeds \
-            -e CI_HELPER=/dockerfiles_feeds/scripts/ci_helpers.sh \
+          docker run \
+            -e ENABLE_GENERIC_TESTS=${{ inputs.enable_generic_tests }} \
+            -e FORCE_GENERIC_TESTS=${{ inputs.force_generic_tests }} \
             -e PKG_MANAGER=${{ env.PKG_MANAGER }} \
+            --platform linux/${{ matrix.arch }} \
+            --rm \
+            --volume $GITHUB_WORKSPACE:/ci \
             test-container
