@@ -91,7 +91,7 @@ jobs:
           echo "build_success=true" >> $GITHUB_OUTPUT
 
       - name: Upload log
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: steps.parse-command.outputs.build_requested == 'true' && (success() || failure())
         with:
           name: build-log-${{ steps.parse-command.outputs.target }}-${{ steps.parse-command.outputs.subtarget }}-${{ steps.parse-command.outputs.profile }}
@@ -106,7 +106,7 @@ jobs:
 
       - name: Upload build artifacts
         if: steps.build.outputs.build_success == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: build-${{ steps.parse-command.outputs.target }}-${{ steps.parse-command.outputs.subtarget }}-${{ steps.parse-command.outputs.profile }}
           path: build-artifacts.tar.gz
