@@ -401,7 +401,8 @@ jobs:
 
       - name: Download and extract ccache cache from s3
         id: restore-ccache-cache-s3
-        if: inputs.use_ccache_cache == true
+        if: inputs.use_ccache_cache == true &&
+            ( inputs.ccache_type != 'kernel' || inputs.upload_ccache_cache != true)
         working-directory: openwrt
         run: |
           S3_LINK=https://s3-ccache.openwrt-ci.ansuel.com
@@ -436,7 +437,9 @@ jobs:
 
       - name: Restore ccache cache
         id: restore-ccache-cache
-        if: inputs.use_ccache_cache == true && steps.restore-ccache-cache-s3.outputs.cache-hit != 'true'
+        if: inputs.use_ccache_cache == true &&
+            ( inputs.ccache_type != 'kernel' || inputs.upload_ccache_cache != true) &&
+            steps.restore-ccache-cache-s3.outputs.cache-hit != 'true'
         uses: actions/cache/restore@v5
         with:
           path: openwrt/.ccache
