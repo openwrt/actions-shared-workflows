@@ -692,6 +692,14 @@ jobs:
         working-directory: openwrt
         run: make target/toolchain/compile -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
 
+      - name: Show ccache stats
+        if: inputs.use_ccache_cache == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/openwrt/.ccache
+        run: staging_dir/host/bin/ccache --show-stats
+
       - name: Coverity prepare toolchain
         if: inputs.coverity_check_packages != ''
         shell: su buildbot -c "sh -e {0}"
