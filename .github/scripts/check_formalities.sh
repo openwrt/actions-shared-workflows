@@ -2,9 +2,9 @@
 
 # Based on https://openwrt.org/submitting-patches#submission_guidelines
 # Hard limit is arbitrary
-MAX_SUBJECT_LEN_HARD=60
-MAX_SUBJECT_LEN_SOFT=50
-MAX_BODY_LINE_LEN=75
+MAX_SUBJECT_LEN_HARD=80
+MAX_SUBJECT_LEN_SOFT=60
+MAX_BODY_LINE_LEN=100
 
 DEPENDABOT_EMAIL="dependabot[bot]@users.noreply.github.com"
 GITHUB_NOREPLY_EMAIL='@users.noreply.github.com'
