@@ -144,7 +144,7 @@ jobs:
 
       - name: Post Invalid Version
         if: steps.check_version.outputs.invalid_version == 'true'
-        uses: octokit/request-action@v3
+        uses: octokit/request-action@v3.x
         with:
           route: POST /repos/{repository}/issues/{issue_number}/comments
           body: ${{ toJSON(env.REQUEST_BODY) }}
@@ -158,7 +158,7 @@ jobs:
 
       - name: Post Invalid Release
         if: steps.check_release.outputs.invalid_release == 'true'
-        uses: octokit/request-action@v3
+        uses: octokit/request-action@v3.x
         with:
           route: POST /repos/{repository}/issues/{issue_number}/comments
           body: ${{ toJSON(env.REQUEST_BODY) }}
@@ -172,7 +172,7 @@ jobs:
 
       - name: Post Invalid Target/Subtarget
         if: steps.check_target.outputs.invalid_target == 'true'
-        uses: octokit/request-action@v3
+        uses: octokit/request-action@v3.x
         with:
           route: POST /repos/{repository}/issues/{issue_number}/comments
           body: ${{ toJSON(env.REQUEST_BODY) }}
@@ -188,7 +188,7 @@ jobs:
       # and model name set in image.mk
       # - name: Post Invalid Model
       #   if: steps.check_device.outputs.invalid_device == 'true'
-      #   uses: octokit/request-action@v3
+      #   uses: octokit/request-action@v3.x
       #   with:
       #     route: POST /repos/{repository}/issues/{issue_number}/comments
       #     body: ${{ toJSON(env.REQUEST_BODY) }}
@@ -202,7 +202,7 @@ jobs:
 
       - name: Add Release tag
         if: steps.check_version.outputs.invalid_version != 'true' && steps.check_release.outputs.invalid_release != 'true' && steps.check_target.outputs.invalid_target != 'true'
-        uses: octokit/request-action@v3
+        uses: octokit/request-action@v3.x
         with:
           route: POST /repos/{repository}/issues/{issue_number}/labels
           labels: ${{ env.REQUEST_BODY }}
@@ -215,7 +215,7 @@ jobs:
 
       - name: Add Target/Subtarget tag
         if: steps.check_version.outputs.invalid_version != 'true' && steps.check_release.outputs.invalid_release != 'true' && steps.check_target.outputs.invalid_target != 'true'
-        uses: octokit/request-action@v3
+        uses: octokit/request-action@v3.x
         with:
           route: POST /repos/{repository}/issues/{issue_number}/labels
           labels: ${{ env.REQUEST_BODY }}
@@ -228,7 +228,7 @@ jobs:
 
       - name: Add tag Image Kind
         if: steps.check_version.outputs.invalid_version != 'true' && steps.check_release.outputs.invalid_release != 'true' && steps.check_target.outputs.invalid_target != 'true'
-        uses: octokit/request-action@v3
+        uses: octokit/request-action@v3.x
         with:
           route: POST /repos/{repository}/issues/{issue_number}/labels
           labels: ${{ env.REQUEST_BODY }}
@@ -241,7 +241,7 @@ jobs:
 
       - name: Add tag Supported Device
         if: steps.check_version.outputs.invalid_version != 'true' && steps.check_release.outputs.invalid_release != 'true' && steps.check_target.outputs.invalid_target != 'true' && steps.check_device.outputs.invalid_device != 'true'
-        uses: octokit/request-action@v3
+        uses: octokit/request-action@v3.x
         with:
           route: POST /repos/{repository}/issues/{issue_number}/labels
           labels: ${{ env.REQUEST_BODY }}
@@ -254,7 +254,7 @@ jobs:
 
       - name: Add Invalid Tag
         if: steps.check_version.outputs.invalid_version == 'true' || steps.check_release.outputs.invalid_release == 'true' || steps.check_target.outputs.invalid_target == 'true'
-        uses: octokit/request-action@v3
+        uses: octokit/request-action@v3.x
         with:
           route: POST /repos/{repository}/issues/{issue_number}/labels
           labels: ${{ env.REQUEST_BODY }}
@@ -275,7 +275,7 @@ jobs:
 
     steps:
       - name: Remove tag to-triage
-        uses: octokit/request-action@v3
+        uses: octokit/request-action@v3.x
         with:
           route: DELETE /repos/{repository}/issues/{issue_number}/labels/{issue_label}
         env:
@@ -285,7 +285,7 @@ jobs:
           INPUT_ISSUE_LABEL: to-triage
 
       - name: Remove tag issue type
-        uses: octokit/request-action@v3
+        uses: octokit/request-action@v3.x
         with:
           route: DELETE /repos/{repository}/issues/{issue_number}/labels/{issue_label}
         env:

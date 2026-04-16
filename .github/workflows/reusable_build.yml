@@ -769,7 +769,7 @@ jobs:
       - name: Delete already present ccache cache
         if: steps.restore-ccache-cache.outputs.cache-hit == 'true' && inputs.use_ccache_cache == true  &&
           github.event_name == 'push' && steps.restore-ccache-cache-s3.outputs.cache-hit != 'true'
-        uses: octokit/request-action@v3
+        uses: octokit/request-action@v3.x
         with:
           route: DELETE /repos/{repository}/actions/caches?key={key}
         env:
