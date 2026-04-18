@@ -788,6 +788,14 @@ jobs:
           name: ${{ inputs.target }}-${{ inputs.subtarget }}${{ inputs.testing == true && '-testing' || '' }}-logs
           path: "openwrt/logs"
 
+      - name: Cleanup ccache
+        if: inputs.use_ccache_cache == true && github.event_name == 'push'
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          staging_dir/host/bin/ccache --evict-older-than 1d
+          staging_dir/host/bin/ccache --cleanup
+
       - name: Cleanup dl/build_dir/staging_dir to make some space
         working-directory: openwrt
         if: github.event_name == 'push'
@@ -817,7 +825,7 @@ jobs:
           inputs.upload_ccache_cache == true
         shell: su buildbot -c "sh -e {0}"
         working-directory: openwrt
-        run: tar -cf ${{ needs.setup_build.outputs.ccache_name }}.tar .ccache
+        run: tar --exclude='.ccache/tmp' -cf ${{ needs.setup_build.outputs.ccache_name }}.tar .ccache
 
       - name: Upload ccache cache
         if: inputs.use_ccache_cache == true && github.event_name == 'push' &&
