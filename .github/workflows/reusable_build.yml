@@ -296,6 +296,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           path: openwrt
+          fetch-depth: 0
 
       - name: Checkout packages feed
         if: inputs.include_feeds == true
@@ -649,6 +650,27 @@ jobs:
         working-directory: openwrt
         run: |
           echo CONFIG_USE_LLVM_PREBUILT=y >> .config
+
+      - name: Determine ccache compiler_check
+        if: inputs.use_ccache_cache == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          REV=HEAD
+          TOOLCHAIN_NAME=in-tree
+          if [ "${{ inputs.build_toolchain }}" != "true" ] && [ -d /external-toolchain ]; then
+            GCC=$(find /external-toolchain -name '*-openwrt-linux-*-gcc' \( -type f -o -type l \) 2>/dev/null | head -n1)
+            if [ -n "$GCC" ]; then
+              TOOLCHAIN_REV=$("$GCC" --version | head -n1 | grep -oE 'r[0-9]+-[0-9a-f]+' | sed 's/^r[0-9]*-//')
+              git cat-file -e "$TOOLCHAIN_REV" 2>/dev/null && REV=$TOOLCHAIN_REV
+              TOOLCHAIN_NAME=$(basename "$(dirname "$(dirname "$GCC")")")
+            fi
+          fi
+
+          SHA=$(git log -1 --format=%H "$REV" -- toolchain/gcc/ toolchain/binutils/)
+          echo "Using toolchain rev $REV -> last toolchain change $SHA ($TOOLCHAIN_NAME)"
+
+          echo "compiler_check=string:$SHA:$TOOLCHAIN_NAME" >> $CCACHE_CONFIGPATH2
 
       - name: Show configuration
         shell: su buildbot -c "sh -e {0}"
