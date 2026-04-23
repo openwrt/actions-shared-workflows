@@ -23,7 +23,7 @@ jobs:
     steps:
       - name: Install minio
         run: |
-          curl --location https://dl.min.io/client/mc/release/linux-amd64/mc \
+          curl --fail --silent --show-error --location https://dl.min.io/client/mc/release/linux-amd64/mc \
             --create-dirs \
             -o $GITHUB_WORKSPACE/minio-binaries/mc
 
