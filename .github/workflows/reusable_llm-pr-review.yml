@@ -1,0 +1,68 @@
+name: LLM PR Review
+
+on:
+  workflow_call:
+    inputs:
+      routine_id:
+        description: 'Claude routine ID (trig_...) for the per-PR review routine'
+        required: true
+        type: string
+      extra_repos:
+        description: 'Comma-separated additional repos for the routine to clone read-only (e.g. openwrt/luci,openwrt/netifd)'
+        required: false
+        type: string
+        default: ''
+    secrets:
+      llm_routine_token:
+        description: 'Bearer token for the routine /fire endpoint'
+        required: true
+
+permissions: {}
+
+jobs:
+  fire:
+    name: Fire LLM PR review routine
+    runs-on: ubuntu-slim
+    steps:
+      - name: Trigger routine
+        env:
+          ROUTINE_ID: ${{ inputs.routine_id }}
+          ROUTINE_TOKEN: ${{ secrets.llm_routine_token }}
+          EXTRA_REPOS: ${{ inputs.extra_repos }}
+          BASE_REPO: ${{ github.event.pull_request.base.repo.full_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+          # Strip CR/LF — these would split into fake key=value lines on the
+          # routine side and could overwrite earlier keys (e.g. base_repo).
+          PR_TITLE=$(printf %s "$PR_TITLE" | tr -d '\r\n')
+          HEAD_REF=$(printf %s "$HEAD_REF" | tr -d '\r\n')
+          PAYLOAD=$(jq -n \
+            --arg base_repo  "$BASE_REPO" \
+            --arg pr_number  "$PR_NUMBER" \
+            --arg head_repo  "$HEAD_REPO" \
+            --arg head_ref   "$HEAD_REF" \
+            --arg head_sha   "$HEAD_SHA" \
+            --arg title      "$PR_TITLE" \
+            --arg extra      "$EXTRA_REPOS" \
+            '{text: ("mode=pr-review\n"
+                   + "base_repo=" + $base_repo + "\n"
+                   + "pr_number=" + $pr_number + "\n"
+                   + "head_repo=" + $head_repo + "\n"
+                   + "head_ref="  + $head_ref  + "\n"
+                   + "head_sha="  + $head_sha  + "\n"
+                   + "extra_repos=" + $extra   + "\n"
+                   + "title="     + $title)}')
+          curl --fail --silent --show-error \
+            -X POST "https://api.anthropic.com/v1/claude_code/routines/${ROUTINE_ID}/fire" \
+            -H "Authorization: Bearer ${ROUTINE_TOKEN}" \
+            -H "anthropic-beta: experimental-cc-routine-2026-04-01" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            -o /dev/null
+          echo "Routine fired for PR #${PR_NUMBER} in ${BASE_REPO}"

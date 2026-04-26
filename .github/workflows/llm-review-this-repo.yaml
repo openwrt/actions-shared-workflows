@@ -1,0 +1,34 @@
+name: LLM Review
+
+on:
+  pull_request_target:
+    types: [opened, reopened]
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || 'nightly' }}
+  cancel-in-progress: false
+
+jobs:
+  pr-review:
+    if: github.event_name == 'pull_request_target' && github.repository_owner == 'openwrt'
+    permissions: {}
+    uses: ./.github/workflows/reusable_llm-pr-review.yml
+    with:
+      routine_id: ${{ vars.LLM_ROUTINE_ID_PR }}
+    secrets:
+      llm_routine_token: ${{ secrets.LLM_ROUTINE_TOKEN_PR }}
+
+  nightly:
+    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.repository_owner == 'openwrt'
+    permissions:
+      pull-requests: read
+    uses: ./.github/workflows/reusable_llm-nightly-digest.yml
+    with:
+      routine_id: ${{ vars.LLM_ROUTINE_ID_NIGHTLY }}
+    secrets:
+      llm_routine_token: ${{ secrets.LLM_ROUTINE_TOKEN_NIGHTLY }}
