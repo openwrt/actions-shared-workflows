@@ -1,0 +1,110 @@
+name: LLM Nightly Digest
+
+on:
+  workflow_call:
+    inputs:
+      routine_id:
+        description: 'Claude routine ID (trig_...) for the nightly digest routine'
+        required: true
+        type: string
+      extra_repos:
+        description: 'Comma-separated additional repos for the routine to clone read-only. Each entry is owner/name:ref or a full http(s) URL with :ref appended (e.g. openwrt/luci:master,gregkh/linux:v6.18.21,https://thekelleys.org.uk/git/dnsmasq.git:master). The ref is required.'
+        required: false
+        type: string
+        default: ''
+      max_prs:
+        description: 'Max PRs to review in one nightly session'
+        required: false
+        type: number
+        default: 8
+      bot_user:
+        description: 'GitHub username of the LLM bot account (used to identify previous reviews)'
+        required: false
+        type: string
+        default: 'openwrt-ai'
+    secrets:
+      llm_routine_token:
+        description: 'Bearer token for the routine /fire endpoint'
+        required: true
+
+permissions:
+  pull-requests: read
+
+jobs:
+  fire:
+    name: Fire LLM nightly digest routine
+    runs-on: ubuntu-slim
+    steps:
+      - name: Find PRs needing review
+        id: prs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BOT_USER: ${{ inputs.bot_user }}
+          MAX_PRS: ${{ inputs.max_prs }}
+        run: |
+          set -euo pipefail
+
+          # Fetch open PRs sorted by most recently updated (server-side sort).
+          # Up to 100 per page; on repos with more open PRs the ones we care
+          # about (recently changed) are still in the first page.
+          mapfile -t pr_data < <(
+            gh api -X GET "repos/$REPO/pulls" \
+              -f state=open \
+              -f sort=updated \
+              -f direction=desc \
+              -f per_page=100 \
+              --jq '.[] | "\(.number)\t\(.head.sha)"'
+          )
+
+          needs_review=()
+          for entry in "${pr_data[@]:-}"; do
+            [ -z "$entry" ] && continue
+            num="${entry%%$'\t'*}"
+            head="${entry##*$'\t'}"
+            last_sha=$(gh api "repos/$REPO/pulls/$num/reviews" \
+              --jq "[.[] | select(.user.login == \"$BOT_USER\")] | last | .commit_id // empty")
+            if [ "$last_sha" != "$head" ]; then
+              needs_review+=("$num")
+              if [ ${#needs_review[@]} -ge "$MAX_PRS" ]; then break; fi
+            fi
+          done
+
+          if [ ${#needs_review[@]} -eq 0 ]; then
+            echo "No PRs need review; skipping routine fire."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          pr_list=$(IFS=,; echo "${needs_review[*]}")
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "pr_numbers=$pr_list" >> "$GITHUB_OUTPUT"
+          echo "Will fire nightly review for ${#needs_review[@]} PRs: $pr_list"
+
+      - name: Trigger routine
+        if: steps.prs.outputs.skip != 'true'
+        env:
+          ROUTINE_ID: ${{ inputs.routine_id }}
+          ROUTINE_TOKEN: ${{ secrets.llm_routine_token }}
+          EXTRA_REPOS: ${{ inputs.extra_repos }}
+          REPO: ${{ github.repository }}
+          PR_NUMBERS: ${{ steps.prs.outputs.pr_numbers }}
+        run: |
+          set -euo pipefail
+          PAYLOAD=$(jq -n \
+            --arg repo        "$REPO" \
+            --arg pr_numbers  "$PR_NUMBERS" \
+            --arg extra       "$EXTRA_REPOS" \
+            '{text: ("mode=nightly-digest\n"
+                   + "repo="        + $repo       + "\n"
+                   + "pr_numbers="  + $pr_numbers + "\n"
+                   + "extra_repos=" + $extra)}')
+          curl --fail --silent --show-error \
+            -X POST "https://api.anthropic.com/v1/claude_code/routines/${ROUTINE_ID}/fire" \
+            -H "Authorization: Bearer ${ROUTINE_TOKEN}" \
+            -H "anthropic-beta: experimental-cc-routine-2026-04-01" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            -o /dev/null
+          echo "Routine fired for ${REPO} with PRs: ${PR_NUMBERS}"
