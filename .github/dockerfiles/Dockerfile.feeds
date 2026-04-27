@@ -1,0 +1,7 @@
+ARG ARCH=x86-64
+FROM openwrt/rootfs:$ARCH
+
+ADD scripts/ci_helpers.sh /scripts/ci_helpers.sh
+ADD scripts/test_entrypoint.sh /scripts/test_entrypoint.sh
+
+CMD ["/scripts/test_entrypoint.sh"]
