@@ -253,6 +253,38 @@ The API caller passes structured key=value lines in the `text` field. Example:
         pick the tool — projects often have their own wrapper
         around the obvious one.
 
+        When the fix is a definite textual change you can anchor
+        on the commented line(s), include a GitHub suggestion
+        block in the comment body — a fenced code block with the
+        language tag `suggestion` containing the replacement text
+        for the full line range the comment is anchored to
+        (`line` for a single-line comment, `start_line`..`line`
+        for a multi-line one). Maintainers apply suggestion
+        blocks with one click. Don't include unchanged surrounding
+        lines, don't omit indentation, don't add diff markers
+        (`+`/`-`) — unless the file itself is a patch. Anchor each
+        suggestion to the specific hunk it
+        replaces. If the same fix applies at several sites, post
+        one comment with the suggestion block on one anchor and
+        call out the other sites in prose ("same applies to
+        lines 57 and 62 below") — don't spam one inline comment
+        per site.
+
+        Good fits: deprecated → modern syntax swaps (`label =
+        "red:status";` → `color = <LED_COLOR_ID_RED>;` +
+        `function = LED_FUNCTION_STATUS;`), bare magic numbers →
+        macros (`0` → `GPIO_ACTIVE_HIGH`), missing single lines
+        (`device_type = "memory";`), trailing whitespace, typos,
+        simple include-path corrections (`mt7981.dtsi` →
+        `mt7981b.dtsi`), removing duplicate entries.
+
+        Skip the suggestion when the fix is open-ended or has
+        several valid forms (rename a misleading variable — to
+        what?), requires regenerating an artifact (see above),
+        crosses files or hunks the comment isn't anchored to, or
+        when you're posing a question rather than prescribing a
+        fix. Prose only there.
+
         When you cite code outside the changed hunks — a function,
         a specific line, a block in another file, or code in a
         pre-cloned reference tree under `~/extra/` — link the
