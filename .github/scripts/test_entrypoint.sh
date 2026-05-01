@@ -25,7 +25,7 @@ is_in_exec_path() {
 	echo "$1" | grep -qE '^(/bin/|/sbin/|/usr/bin/|/usr/sbin/|/usr/libexec/)'
 }
 
-is_lib() {
+is_in_lib_path() {
 	echo "$1" | grep -qE '^(/lib/|/usr/lib/)'
 }
 
@@ -106,7 +106,7 @@ check_lib()	{
 		# pointing to the library file. This is usually in the same directory.
 		local lib_dir
 		lib_dir=$(dirname "$file")
-		if [ ! -L "$lib_dir/$soname" ]; then
+		if [ "$(basename "$file")" != "$soname" ] && [ ! -L "$lib_dir/$soname" ]; then
 			status_fail "Library $file has SONAME '$soname' but no corresponding symlink was found in $lib_dir"
 			has_failure=1
 		elif [ "$(readlink -f "$lib_dir/$soname")" != "$(readlink -f "$file")" ]; then
@@ -188,7 +188,7 @@ do_generic_tests() {
 			has_failure=1
 		fi
 
-		if is_lib "$file" && ! check_lib "$file"; then
+		if is_in_lib_path "$file" && ! check_lib "$file"; then
 			has_failure=1
 		fi
 	done
