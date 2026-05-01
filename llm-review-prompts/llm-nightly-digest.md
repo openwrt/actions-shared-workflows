@@ -87,9 +87,16 @@ The API caller passes structured key=value lines in the `text` field. Example:
    sub-agents are told to check for existence before grepping. If
    `extra_repos` is empty, skip this step entirely.
 
-3. **Spawn sub-agents in parallel.** For each PR number in `pr_numbers`,
-   spawn one sub-agent via the Agent tool. Issue all spawn calls
-   in a **single message** so the runtime can execute them concurrently.
+   **Wait for every `git clone` to finish before proceeding to step
+   3.** Sub-agents read these directories the moment they start, so
+   spawning them while a clone is still in flight will race them
+   against an empty or partial tree.
+
+3. **Spawn sub-agents in parallel.** Only after step 2 has fully
+   completed (all clones returned, successfully or with the failure
+   logged), for each PR number in `pr_numbers` spawn one sub-agent
+   via the Agent tool. Issue all spawn calls in a **single message**
+   so the runtime can execute them concurrently.
 
    For each sub-agent, pass the prompt template below verbatim, after
    substituting `<NUM>` with the PR number, `<REPO>` with the value of
