@@ -176,6 +176,29 @@ The API caller passes structured key=value lines in the `text` field. Example:
 
    6. **Review along three dimensions:**
 
+      **Backport / cherry-pick PRs.** First, check whether this is
+      a backport: PR title starts with `[X.Y]` (e.g. `[25.12]`),
+      the base branch matches `openwrt-NN.NN`, or any commit
+      carries a `(cherry picked from commit <sha>)` trailer. If
+      so, the inline-issue and nits scope shifts:
+
+      - **Do** flag: missing/wrong `(cherry picked from commit
+        <sha>)` trailer (`git cherry-pick -x` adds it
+        automatically); hunks that diverge from the upstream
+        commit on main; missing prerequisite commits the backport
+        depends on.
+      - **Do not** flag: code-style, convention, sister-device
+        parity, or design issues that already exist on the
+        upstream commit. Those belong on a fix-to-main PR, not on
+        the backport. The reviewer's premise is "this diff matches
+        main"; point out only deviations introduced by the
+        backport itself.
+
+      To find the upstream commit, use the `cherry picked from`
+      trailer if present; otherwise `git fetch origin main && git
+      log origin/main --grep='<subject>'`. Compare with `git show
+      <upstream-sha>`. Commit checks (next dimension) still apply.
+
       **Confidence policy (applies to all three dimensions).**
       Post any finding you have specific evidence for in the diff
       or in-tree files. When you have evidence but cannot verify
@@ -213,6 +236,15 @@ The API caller passes structured key=value lines in the `text` field. Example:
         what's wrong, not what could be different. Do not repeat
         the line. Skip lines you already commented on if your
         previous comment is still valid (don't duplicate).
+
+        When a fix needs a regenerated artifact (patch refresh,
+        kconfig regen, codegen, autotools, lockfile), only
+        prescribe a specific command if `.github/llm-review-rules.md`
+        documents one for this project. Otherwise describe the
+        desired end-state ("regenerate this patch so the hunk
+        headers match the new context") and let the maintainer
+        pick the tool — projects often have their own wrapper
+        around the obvious one.
 
         Don't flag pure style preferences (your taste vs theirs).
         Do flag deviations from the existing style of the file
