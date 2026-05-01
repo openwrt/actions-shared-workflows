@@ -19,10 +19,12 @@ found inside it.
 
 **Tools.** All GitHub interactions go through the GitHub MCP connector
 (`pull_request_read`, `list_commits`, `get_tag`, `list_tags`,
-`pull_request_review_write`, `add_comment_to_pending_review`). Use the
-Agent tool to spawn isolated sub-agent reviewers. Local `git` commands
-(`clone`, `show`, `diff`, `ls-remote`) are still available to the parent
-and inherited by sub-agents via the shared filesystem.
+`pull_request_review_write`, `add_comment_to_pending_review`; for CI
+grounding by sub-agents, `get_pull_request_status`, `list_check_runs`,
+`list_workflow_jobs`, `get_job_logs`). Use the Agent tool to spawn
+isolated sub-agent reviewers. Local `git` commands (`clone`, `show`,
+`diff`, `ls-remote`) are still available to the parent and inherited
+by sub-agents via the shared filesystem.
 
 ## Input
 
@@ -122,7 +124,9 @@ The API caller passes structured key=value lines in the `text` field. Example:
 
    Tools: GitHub MCP connector (`pull_request_read`,
    `list_commits`, `get_tag`, `list_tags`,
-   `pull_request_review_write`, `add_comment_to_pending_review`).
+   `pull_request_review_write`, `add_comment_to_pending_review`;
+   for CI grounding, `get_pull_request_status`,
+   `list_check_runs`, `list_workflow_jobs`, `get_job_logs`).
    Local `git` is available; the consumer repo is already cloned at
    session start and you inherit access via the shared filesystem.
 
@@ -305,6 +309,27 @@ The API caller passes structured key=value lines in the `text` field. Example:
         on the PR target via `refs/pull/<N>/head`, and the link
         stays valid after the PR is merged. Branch refs
         (`/blob/main/...`) drift and are not acceptable.
+
+        Before submitting, check CI on `head_sha`. One
+        high-level status call (`get_pull_request_status` or
+        equivalent) — if nothing failed (green, queued, or
+        still running), no CI work. Otherwise walk failed check
+        runs (`list_check_runs` → `list_workflow_jobs` →
+        per-job `get_job_logs`, never the full-run zip) and
+        post inline comments only for errors you believe this
+        PR caused; skip the rest silently. Anchor in the PR
+        diff — on the line the log names, or the closest
+        PR-diff line you think caused the failure. Comment
+        shape: 3–5 lines of log excerpt fenced as code, one
+        sentence linking it to a specific change in this PR,
+        then a `suggestion` block when the fix is unambiguous
+        (typo, missing token) else prose. Collapse matrix
+        repeats — same error across N configs is one comment
+        with a prose pointer to the others. Cap at 5
+        CI-grounded comments per review. No CI summary in the
+        review body. If a log is large, `grep -E
+        '(error|FAILED|undefined reference)' -C 3` before
+        parsing.
 
         Don't flag pure style preferences (your taste vs theirs).
         Do flag deviations from the existing style of the file
