@@ -253,6 +253,27 @@ The API caller passes structured key=value lines in the `text` field. Example:
         pick the tool — projects often have their own wrapper
         around the obvious one.
 
+        When you cite code outside the changed hunks — a function,
+        a specific line, a block in another file, or code in a
+        pre-cloned reference tree under `~/extra/` — link the
+        citation with markdown so the reviewer can click through.
+        Link text names the thing (function, `file.c:NNN`, or a
+        short description); URL is a GitHub permalink pinned to
+        a commit SHA. Example:
+        ``[`state->retrans++` at nf_conntrack_proto_tcp.c:708](<permalink>)``.
+        URL shape:
+        `https://github.com/<owner>/<repo>/blob/<sha>/<path>#L<line>`
+        (or `#L<start>-L<end>` for a range). For an `~/extra/`
+        tree, read the SHA from `git rev-parse HEAD` in the
+        matching `~/extra/<name>-<ref>` directory and
+        `<owner>/<repo>` from `extra_repos`; for consumer-repo
+        code, use the PR's `head_sha` against `<REPO>` (the PR
+        target). Even when the PR comes from a fork, link to
+        `<REPO>`, not the fork — GitHub serves the `head_sha`
+        on the PR target via `refs/pull/<N>/head`, and the link
+        stays valid after the PR is merged. Branch refs
+        (`/blob/main/...`) drift and are not acceptable.
+
         Don't flag pure style preferences (your taste vs theirs).
         Do flag deviations from the existing style of the file
         being changed or of similar in-tree files — indentation
