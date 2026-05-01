@@ -1,5 +1,7 @@
 #!/bin/sh
 
+# shellcheck shell=busybox
+
 # not enabling `errtrace` and `pipefail` since those are bash specific
 set -o errexit # failing commands causes script to fail
 set -o nounset # undefined variables causes script to fail
@@ -19,8 +21,8 @@ generic_tests_forced() {
 	[ "$FORCE_GENERIC_TESTS" = 'true' ]
 }
 
-is_exec() {
-	[ -x "$1" ] && echo "$1" | grep -qE '^(/bin/|/sbin/|/usr/bin/|/usr/sbin/|/usr/libexec/)'
+is_in_exec_path() {
+	echo "$1" | grep -qE '^(/bin/|/sbin/|/usr/bin/|/usr/sbin/|/usr/libexec/)'
 }
 
 is_lib() {
@@ -49,13 +51,12 @@ check_hardcoded_paths() {
 
 check_exec() {
 	local file="$1"
-	local has_failure=0
 
 	if [ -x "$file" ]; then
 		status_pass "File $file is executable"
 	else
 		status_fail "File $file in executable path is not executable"
-		has_failure=1
+		return 1
 	fi
 
 	local found_version=0
@@ -68,12 +69,8 @@ check_exec() {
 	done
 
 	if [ "$found_version" = 0 ]; then
-		status_fail "Failed to find version $PKG_VERSION in $file"
-		has_failure=1
-	fi
-
-	if [ "$has_failure" = 1 ]; then
-		return 1
+		status_warn "Failed to find version $PKG_VERSION in $file"
+		return 2
 	fi
 
 	return 0
@@ -141,6 +138,8 @@ do_generic_tests() {
 	files=$(echo "$all_files" | grep -E '^(/bin/|/sbin/|/usr/bin/|/usr/libexec/|/usr/sbin/|/lib/|/usr/lib/)')
 
 	local has_failure=0
+	local exec_checked=0
+	local version_missing=0
 	for file in $files; do
 		if [ ! -e "$file" ]; then
 			# opkg files can list directories
@@ -160,8 +159,16 @@ do_generic_tests() {
 			continue
 		fi
 
-		if is_exec "$file" && ! check_exec "$file"; then
-			has_failure=1
+		if is_in_exec_path "$file"; then
+			exec_checked=$((exec_checked + 1))
+
+			local ret_exec=0
+			check_exec "$file" || ret_exec=$?
+			if [ "$ret_exec" -eq 1 ]; then
+				has_failure=1
+			elif [ "$ret_exec" -eq 2 ]; then
+				version_missing=$((version_missing + 1))
+			fi
 		fi
 
 		# Skip non-ELF files
@@ -185,6 +192,16 @@ do_generic_tests() {
 			has_failure=1
 		fi
 	done
+
+	# Fail if all executables are missing correct versions
+	if [ "$exec_checked" -gt 0 ]; then
+		if [ "$exec_checked" -eq "$version_missing" ]; then
+			err "No executables in the package provided version $PKG_VERSION"
+			has_failure=1
+		elif [ "$version_missing" -gt 0 ]; then
+			warn "$version_missing/$exec_checked executables are missing version $PKG_VERSION"
+		fi
+	fi
 
 	if [ "$has_failure" = 1 ]; then
 		err "Generic tests failed"
