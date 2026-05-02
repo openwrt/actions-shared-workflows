@@ -305,13 +305,9 @@ for PKG in /ci/*.[ai]pk; do
 	fi
 
 	if is_opkg; then
-		opkg remove "$PKG_NAME" \
-				--autoremove \
-				--force-removal-of-dependent-packages \
-				--force-remove \
-			|| true
+		opkg remove "$PKG_NAME" --autoremove --force-remove || true
 	elif is_apk; then
-		apk del --rdepends "$PKG_NAME" || true
+		apk del "$PKG_NAME" || true
 	fi
 
 	[ "$SUCCESS" = 1 ] || exit 1
