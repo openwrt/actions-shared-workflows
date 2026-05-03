@@ -49,3 +49,8 @@ status_warn() {
 status_fail() {
 	status 31 fail "$1"
 }
+
+# Prints `[skip] $1` with default-colored skip
+status_skip() {
+	status 39 skip "$1"
+}

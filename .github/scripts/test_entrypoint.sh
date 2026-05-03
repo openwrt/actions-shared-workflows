@@ -51,25 +51,32 @@ check_hardcoded_paths() {
 
 check_exec() {
 	local file="$1"
+	local skip_version_check="${2:-0}"
 
 	if [ -x "$file" ]; then
 		status_pass "File $file is executable"
 	else
-		status_fail "File $file in executable path is not executable"
+		status_fail "File $file is executable"
 		return 1
 	fi
 
+	if [ "$skip_version_check" = 1 ]; then
+		status_skip "Version check ($file)"
+		return 0
+	fi
+
 	local found_version=0
+
 	for flag in --version -version version -v -V --help -help -?; do
 		if "$file" "$flag" 2>&1 | grep -F "$PKG_VERSION"; then
-			status_pass "Found version $PKG_VERSION in $file"
+			status_pass "Version check ($file)"
 			found_version=1
 			break
 		fi
 	done
 
 	if [ "$found_version" = 0 ]; then
-		status_warn "Failed to find version $PKG_VERSION in $file"
+		status_warn "Version check ($file)"
 		return 2
 	fi
 
@@ -127,6 +134,8 @@ check_lib()	{
 }
 
 do_generic_tests() {
+	local test_version_script="$1"
+
 	local all_files
 	if is_opkg; then
 		all_files=$(opkg files "$PKG_NAME")
@@ -163,11 +172,17 @@ do_generic_tests() {
 			exec_checked=$((exec_checked + 1))
 
 			local ret_exec=0
-			check_exec "$file" || ret_exec=$?
-			if [ "$ret_exec" -eq 1 ]; then
+			if [ -f "$test_version_script" ]; then
+				check_exec "$file" 1 || ret_exec=$?
+			else
+				check_exec "$file" || ret_exec=$?
+				if [ "$ret_exec" = 2 ]; then
+					version_missing=$((version_missing + 1))
+				fi
+			fi
+
+			if [ "$ret_exec" = 1 ]; then
 				has_failure=1
-			elif [ "$ret_exec" -eq 2 ]; then
-				version_missing=$((version_missing + 1))
 			fi
 		fi
 
@@ -193,13 +208,24 @@ do_generic_tests() {
 		fi
 	done
 
-	# Fail if all executables are missing correct versions
-	if [ "$exec_checked" -gt 0 ]; then
-		if [ "$exec_checked" -eq "$version_missing" ]; then
-			err "No executables in the package provided version $PKG_VERSION"
+	if [ -f "$test_version_script" ]; then
+		if sh "$test_version_script" "$PKG_NAME" "$PKG_VERSION"; then
+			status_pass "Version check override"
+		else
+			status_fail "Version check override"
 			has_failure=1
-		elif [ "$version_missing" -gt 0 ]; then
-			warn "$version_missing/$exec_checked executables are missing version $PKG_VERSION"
+		fi
+	else
+		status_skip "Version check override"
+
+		# Fail if all executables are missing correct versions
+		if [ "$exec_checked" -gt 0 ]; then
+			if [ "$exec_checked" -eq "$version_missing" ]; then
+				err "No executables in the package provided version $PKG_VERSION"
+				has_failure=1
+			elif [ "$version_missing" -gt 0 ]; then
+				warn "$version_missing/$exec_checked executables are missing version $PKG_VERSION"
+			fi
 		fi
 	fi
 
@@ -268,6 +294,10 @@ for PKG in /ci/*.[ai]pk; do
 
 	PRE_TEST_SCRIPT="/ci/$PKG_SOURCE/pre-test.sh"
 	TEST_SCRIPT="/ci/$PKG_SOURCE/test.sh"
+	TEST_VERSION_SCRIPT="/ci/$PKG_SOURCE/test-version.sh"
+	[ -f "$PRE_TEST_SCRIPT" ] && warn "Pre-test script found"
+	[ -f "$TEST_SCRIPT" ] && warn "Test script found"
+	[ -f "$TEST_VERSION_SCRIPT" ] && warn "Version test override script found"
 
 	export PKG_NAME PKG_VERSION CI_HELPERS
 
@@ -292,7 +322,7 @@ for PKG in /ci/*.[ai]pk; do
 
 	if generic_tests_enabled && ( generic_tests_forced || [ ! -f "$TEST_SCRIPT" ] ); then
 		warn 'Use generic tests'
-		if ! do_generic_tests; then
+		if ! do_generic_tests "$TEST_VERSION_SCRIPT"; then
 			RET=1
 		fi
 	fi
