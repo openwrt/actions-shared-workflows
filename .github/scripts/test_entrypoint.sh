@@ -234,6 +234,7 @@ else
 	warn 'Generic tests are disabled'
 fi
 
+RET=0
 for PKG in /ci/*.[ai]pk; do
 	if is_opkg; then
 		tar -xzOf "$PKG" ./control.tar.gz | tar xzf - ./control
@@ -260,7 +261,9 @@ for PKG in /ci/*.[ai]pk; do
 	info "Testing package version $PKG_VERSION from $PKG_SOURCE"
 
 	if ! [ -d "/ci/$PKG_SOURCE" ]; then
-		err_die "$PKG_SOURCE is not a directory"
+		err "$PKG_SOURCE is not a directory"
+		RET=1
+		continue
 	fi
 
 	PRE_TEST_SCRIPT="/ci/$PKG_SOURCE/pre-test.sh"
@@ -273,7 +276,9 @@ for PKG in /ci/*.[ai]pk; do
 		if sh "$PRE_TEST_SCRIPT" "$PKG_NAME" "$PKG_VERSION"; then
 			success 'Pre-test passed'
 		else
-			err_die 'Pre-test failed'
+			err 'Pre-test failed'
+			RET=1
+			continue
 		fi
 	else
 		info 'No pre-test.sh script available'
@@ -285,12 +290,10 @@ for PKG in /ci/*.[ai]pk; do
 		apk add --allow-untrusted "$PKG"
 	fi
 
-	SUCCESS=0
-
 	if generic_tests_enabled && ( generic_tests_forced || [ ! -f "$TEST_SCRIPT" ] ); then
 		warn 'Use generic tests'
-		if do_generic_tests; then
-			SUCCESS=1
+		if ! do_generic_tests; then
+			RET=1
 		fi
 	fi
 
@@ -298,9 +301,9 @@ for PKG in /ci/*.[ai]pk; do
 		info 'Use the package-specific test.sh'
 		if sh "$TEST_SCRIPT" "$PKG_NAME" "$PKG_VERSION"; then
 			success 'Test passed'
-			SUCCESS=1
 		else
 			err 'Test failed'
+			RET=1
 		fi
 	fi
 
@@ -309,6 +312,12 @@ for PKG in /ci/*.[ai]pk; do
 	elif is_apk; then
 		apk del "$PKG_NAME" || true
 	fi
-
-	[ "$SUCCESS" = 1 ] || exit 1
 done
+
+echo
+if [ "$RET" = 0 ]; then
+	success 'All tests passed'
+else
+	err 'Some tests failed'
+fi
+exit $RET
