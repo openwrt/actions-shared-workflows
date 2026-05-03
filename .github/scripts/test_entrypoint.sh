@@ -68,7 +68,7 @@ check_exec() {
 	local found_version=0
 
 	for flag in --version -version version -v -V --help -help -?; do
-		if "$file" "$flag" 2>&1 | grep -F "$PKG_VERSION"; then
+		if timeout 3s "$file" "$flag" 2>&1 | grep -F "$PKG_VERSION"; then
 			status_pass "Version check ($file)"
 			found_version=1
 			break
