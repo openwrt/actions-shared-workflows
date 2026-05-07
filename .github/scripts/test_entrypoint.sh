@@ -66,22 +66,35 @@ check_exec() {
 		return 0
 	fi
 
-	local found_version=0
-
-	for flag in --version -version version -v -V --help -help -?; do
-		if timeout 3s "$file" "$flag" 2>&1 | grep -F "$PKG_VERSION"; then
-			status_pass "Version check ($file)"
-			found_version=1
-			break
+	# Some executables behave differently depending on the filename, so if an
+	# alternative link is present, try that first.
+	# NB: Busybox doesn't support arrays
+	local files_to_check=''
+	local link_target
+	while IFS= read -r -d '' link; do
+		link_target=$(readlink -f "$link")
+		if [ "$link_target" = "$file" ]; then
+			files_to_check="$files_to_check $link"
 		fi
+	done < <(find /usr/bin -type l -print0 2>/dev/null)
+
+	# Check the actual file last
+	files_to_check="$files_to_check $file"
+
+	local output
+	for check_file in $files_to_check; do
+		for flag in --version -version version -v -V --help -help -?; do
+			output=$(timeout --kill-after=5s 10s "$check_file" "$flag" 2>&1) || continue
+
+			if echo "$output" | grep -F "$PKG_VERSION"; then
+				status_pass "Version check ($check_file)"
+				return 0
+			fi
+		done
 	done
 
-	if [ "$found_version" = 0 ]; then
-		status_warn "Version check ($file)"
-		return 2
-	fi
-
-	return 0
+	status_warn "Version check ($file)"
+	return 2
 }
 
 check_linked_libs() {
