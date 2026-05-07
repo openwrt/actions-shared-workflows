@@ -10,6 +10,7 @@ mkdir -p /var/lock/
 mkdir -p /var/log/
 
 CI_HELPERS="${CI_HELPERS:-/scripts/ci_helpers.sh}"
+TEST_PACKAGES="binutils coreutils-timeout file"
 
 source "$CI_HELPERS"
 
@@ -245,11 +246,11 @@ if is_opkg; then
 	# This fixes running CI tests.
 	sed -i '/check_signature/d' /etc/opkg.conf
 	opkg update
-	opkg install binutils coreutils-timeout file
+	opkg install $TEST_PACKAGES
 elif is_apk; then
 	echo "/ci/packages.adb" >> /etc/apk/repositories.d/distfeeds.list
 	apk update
-	apk add binutils coreutils-timeout file
+	apk add $TEST_PACKAGES
 fi
 
 if generic_tests_enabled && generic_tests_forced; then
@@ -335,6 +336,11 @@ for PKG in /ci/*.[ai]pk; do
 			err 'Test failed'
 			RET=1
 		fi
+	fi
+
+	# Don't remove test packages
+	if [[ " ${TEST_PACKAGES} " =~ " ${PKG_NAME} " ]]; then
+		continue
 	fi
 
 	if is_opkg; then
