@@ -245,11 +245,11 @@ if is_opkg; then
 	# This fixes running CI tests.
 	sed -i '/check_signature/d' /etc/opkg.conf
 	opkg update
-	opkg install binutils file
+	opkg install binutils coreutils-timeout file
 elif is_apk; then
 	echo "/ci/packages.adb" >> /etc/apk/repositories.d/distfeeds.list
 	apk update
-	apk add binutils file
+	apk add binutils coreutils-timeout file
 fi
 
 if generic_tests_enabled && generic_tests_forced; then
