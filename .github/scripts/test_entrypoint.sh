@@ -245,11 +245,13 @@ if is_opkg; then
 	# This fixes running CI tests.
 	sed -i '/check_signature/d' /etc/opkg.conf
 	opkg update
-	opkg install binutils file
+	# coreutils-timeout is needed because BusyBox is built without the
+	# timeout applet (BUSYBOX_DEFAULT_TIMEOUT=n) in the openwrt/rootfs image.
+	opkg install binutils file coreutils-timeout
 elif is_apk; then
 	echo "/ci/packages.adb" >> /etc/apk/repositories.d/distfeeds.list
 	apk update
-	apk add binutils file
+	apk add binutils file coreutils-timeout
 fi
 
 if generic_tests_enabled && generic_tests_forced; then
