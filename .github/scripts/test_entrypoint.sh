@@ -113,7 +113,7 @@ check_linked_libs() {
 
 check_lib()	{
 	local file="$1"
-	local has_failure=0
+
 	local soname
 	soname=$(readelf -d "$file" 2>/dev/null | grep 'SONAME' | sed -E 's/.*\[(.*)\].*/\1/')
 	if [ -n "$soname" ]; then
@@ -129,19 +129,15 @@ check_lib()	{
 		lib_dir=$(dirname "$file")
 		if [ "$(basename "$file")" != "$soname" ] && [ ! -L "$lib_dir/$soname" ]; then
 			status_fail "Library $file has SONAME '$soname' but no corresponding symlink was found in $lib_dir"
-			has_failure=1
+			return 1
 		elif [ "$(readlink -f "$lib_dir/$soname")" != "$(readlink -f "$file")" ]; then
 			status_fail "Symlink for SONAME '$soname' does not point to $file"
-			has_failure=1
+			return 1
 		else
 			status_pass "SONAME link for $file is correct"
 		fi
 	else
 		status_warn "Library $file doesn't have a SONAME"
-	fi
-
-	if [ "$has_failure" = 1 ]; then
-		return 1
 	fi
 
 	return 0
