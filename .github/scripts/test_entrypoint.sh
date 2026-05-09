@@ -26,8 +26,10 @@ is_in_exec_path() {
 	echo "$1" | grep -qE '^(/bin/|/sbin/|/usr/bin/|/usr/sbin/|/usr/libexec/)'
 }
 
+# Don't check deeply-nested libraries that might be there only for internal use
+# Based on: strings /lib/ld-musl-*.so.1 | grep -E '(/lib|/usr/lib)'
 is_in_lib_path() {
-	echo "$1" | grep -qE '^(/lib/|/usr/lib/)'
+	echo "$1" | grep -qE '^(/lib|/usr/local/lib|/usr/lib)/[^/]+$'
 }
 
 is_apk() {
