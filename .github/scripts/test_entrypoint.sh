@@ -84,7 +84,7 @@ check_exec() {
 	local output
 	for check_file in $files_to_check; do
 		for flag in --version -version version -v -V --help -help -?; do
-			output=$(timeout --kill-after=5s 10s "$check_file" "$flag" 2>&1) || continue
+			output=$(timeout --kill-after=5s 10s "$check_file" "$flag" 2>&1) || true
 
 			if echo "$output" | grep -F "$PKG_VERSION"; then
 				status_pass "Version check ($check_file)"
