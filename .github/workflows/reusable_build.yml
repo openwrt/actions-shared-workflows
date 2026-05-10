@@ -169,7 +169,7 @@ jobs:
   check:
     name: Check packages for ${{ inputs.target }}/${{ inputs.subtarget }}
     needs: setup_build
-    if: inputs.check == true && ( github.event_name == 'push' || inputs.check_packages_list != '' )
+    if: inputs.check == true && ( github.event_name == 'push' || github.event_name == 'workflow_dispatch' || inputs.check_packages_list != '' )
     runs-on: ubuntu-latest
 
     container: ghcr.io/${{ needs.setup_build.outputs.container }}
@@ -403,7 +403,7 @@ jobs:
       - name: Download and extract ccache cache from s3
         id: restore-ccache-cache-s3
         if: inputs.use_ccache_cache == true &&
-            ( inputs.ccache_type != 'kernel' || inputs.upload_ccache_cache != true || github.event_name != 'push')
+            ( inputs.ccache_type != 'kernel' || inputs.upload_ccache_cache != true || (github.event_name != 'push' && github.event_name != 'workflow_dispatch'))
         working-directory: openwrt
         run: |
           S3_LINK=https://s3-ccache.openwrt-ci.ansuel.com
@@ -439,7 +439,7 @@ jobs:
       - name: Restore ccache cache
         id: restore-ccache-cache
         if: inputs.use_ccache_cache == true &&
-            ( inputs.ccache_type != 'kernel' || inputs.upload_ccache_cache != true || github.event_name != 'push') &&
+            ( inputs.ccache_type != 'kernel' || inputs.upload_ccache_cache != true || (github.event_name != 'push' && github.event_name != 'workflow_dispatch')) &&
             steps.restore-ccache-cache-s3.outputs.cache-hit != 'true'
         uses: actions/cache/restore@v5
         with:
@@ -796,7 +796,7 @@ jobs:
           path: "openwrt/logs"
 
       - name: Cleanup ccache
-        if: inputs.use_ccache_cache == true && github.event_name == 'push'
+        if: inputs.use_ccache_cache == true && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         shell: su buildbot -c "sh -e {0}"
         working-directory: openwrt
         run: |
@@ -805,12 +805,12 @@ jobs:
 
       - name: Cleanup dl/build_dir/staging_dir to make some space
         working-directory: openwrt
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         run: rm -rf dl build_dir staging_dir
 
       - name: Delete already present ccache cache
         if: steps.restore-ccache-cache.outputs.cache-hit == 'true' && inputs.use_ccache_cache == true  &&
-          github.event_name == 'push' && steps.restore-ccache-cache-s3.outputs.cache-hit != 'true'
+          (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && steps.restore-ccache-cache-s3.outputs.cache-hit != 'true'
         uses: octokit/request-action@v3.x
         with:
           route: DELETE /repos/{repository}/actions/caches?key={key}
@@ -820,7 +820,7 @@ jobs:
           INPUT_KEY: ${{ steps.restore-ccache-cache.outputs.cache-primary-key }}
 
       - name: Save ccache cache
-        if: inputs.use_ccache_cache == true && github.event_name == 'push' &&
+        if: inputs.use_ccache_cache == true && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
           steps.restore-ccache-cache-s3.outputs.cache-hit != 'true'
         uses: actions/cache/save@v5
         with:
@@ -828,14 +828,14 @@ jobs:
           key: ${{ steps.restore-ccache-cache.outputs.cache-primary-key }}
 
       - name: Archive ccache
-        if: inputs.use_ccache_cache == true  && github.event_name == 'push' &&
+        if: inputs.use_ccache_cache == true  && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
           inputs.upload_ccache_cache == true
         shell: su buildbot -c "sh -e {0}"
         working-directory: openwrt
         run: tar --exclude='.ccache/tmp' -cf ${{ needs.setup_build.outputs.ccache_name }}.tar .ccache
 
       - name: Upload ccache cache
-        if: inputs.use_ccache_cache == true && github.event_name == 'push' &&
+        if: inputs.use_ccache_cache == true && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
           inputs.upload_ccache_cache == true
         uses: actions/upload-artifact@v7
         with:

@@ -49,7 +49,7 @@ jobs:
       check_packages_list: ${{ needs.determine_changed_packages.outputs.changed_packages }}
 
   upload-ccache-cache-in-s3:
-    if: github.event_name == 'push' && github.repository_owner == 'openwrt'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.repository_owner == 'openwrt'
     name: Upload ccache cache to s3
     needs: build
     strategy:

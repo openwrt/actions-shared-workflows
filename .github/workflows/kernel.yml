@@ -54,7 +54,7 @@ jobs:
           TARGETS="$(echo "$ALL_TARGETS" | sort -u -t '/' -k1,1 | cut -d " " -f 1)"
 
           # On testing non-specific target, skip testing each subtarget if we are testing pr
-          if [ ${{ github.event_name }} != 'push' ]; then
+          if [ ${{ github.event_name }} != 'push' ] && [ ${{ github.event_name }} != 'workflow_dispatch' ]; then
             if echo "$CHANGED_FILES" | grep -v -q -P ^target/linux/.*/ ||
               echo "$CHANGED_FILES" | grep -q target/linux/generic; then
               TARGETS_SUBTARGETS=$TARGETS
@@ -70,13 +70,17 @@ jobs:
             TARGET=$(echo $TARGET_SUBTARGET | cut -d "/" -f 1)
             SUBTARGET=$(echo $TARGET_SUBTARGET | cut -d "/" -f 2)
 
-            if echo "$CHANGED_FILES" | grep -q target/linux/generic ||
+            # On manual dispatch: build every target/subtarget with both kernel versions, ignoring changed files
+            if [ ${{ github.event_name }} = 'workflow_dispatch' ] ||
+              echo "$CHANGED_FILES" | grep -q target/linux/generic ||
               echo "$CHANGED_FILES" | grep -q "package/kernel" ||
               echo "$CHANGED_FILES" | grep -q "target/linux/$TARGET"; then
 
               # test target if kernel version is affected
               # If AFFECTED_KERNEL_VERSIONS is empty fallback to simple testing (case of changed files)
-              if [ -z "${{ env.AFFECTED_KERNEL_VERSIONS }}" ] || echo "${{ env.AFFECTED_KERNEL_VERSIONS }}" | grep -q "$TARGET_KERNEL_VER"; then
+              if [ ${{ github.event_name }} = 'workflow_dispatch' ] ||
+                [ -z "${{ env.AFFECTED_KERNEL_VERSIONS }}" ] ||
+                echo "${{ env.AFFECTED_KERNEL_VERSIONS }}" | grep -q "$TARGET_KERNEL_VER"; then
                 TUPLE='{"target":"'"$TARGET"'","subtarget":"'"$SUBTARGET"'"}'
                 [[ $FIRST -ne 1 ]] && JSON_TARGETS_SUBTARGETS="$JSON_TARGETS_SUBTARGETS"','
                 JSON_TARGETS_SUBTARGETS="$JSON_TARGETS_SUBTARGETS""$TUPLE"
@@ -84,7 +88,9 @@ jobs:
               fi
 
               # Also test testing kernel version if kernel version is affected
-              if [ -n "$TARGET_TESTING_KERNEL_VER" ] && echo "${{ env.AFFECTED_KERNEL_VERSIONS }}" | grep -q "$TARGET_TESTING_KERNEL_VER"; then
+              if [ -n "$TARGET_TESTING_KERNEL_VER" ] &&
+                ( [ ${{ github.event_name }} = 'workflow_dispatch' ] ||
+                  echo "${{ env.AFFECTED_KERNEL_VERSIONS }}" | grep -q "$TARGET_TESTING_KERNEL_VER" ); then
                 TUPLE='{"target":"'"$TARGET"'","subtarget":"'"$SUBTARGET"'","testing":"'"$TARGET_TESTING_KERNEL_VER"'"}'
                 [[ $FIRST -ne 1 ]] && JSON_TARGETS_SUBTARGETS="$JSON_TARGETS_SUBTARGETS"','
                 JSON_TARGETS_SUBTARGETS="$JSON_TARGETS_SUBTARGETS""$TUPLE"
@@ -103,13 +109,16 @@ jobs:
             TARGET=$(echo $TARGET_SUBTARGET | cut -d "/" -f 1)
             SUBTARGET=$(echo $TARGET_SUBTARGET | cut -d "/" -f 2)
 
-            if echo "$CHANGED_FILES" | grep -q target/linux/generic ||
+            if [ ${{ github.event_name }} = 'workflow_dispatch' ] ||
+              echo "$CHANGED_FILES" | grep -q target/linux/generic ||
               echo "$CHANGED_FILES" | grep -q "package/kernel" ||
               echo "$CHANGED_FILES" | grep -q "target/linux/$TARGET"; then
 
               # test target if kernel version is affected
               # If AFFECTED_KERNEL_VERSIONS is empty fallback to simple testing (case of changed files)
-              if [ -z "${{ env.AFFECTED_KERNEL_VERSIONS }}" ] || echo "${{ env.AFFECTED_KERNEL_VERSIONS }}" | grep -q "$TARGET_KERNEL_VER"; then
+              if [ ${{ github.event_name }} = 'workflow_dispatch' ] ||
+                [ -z "${{ env.AFFECTED_KERNEL_VERSIONS }}" ] ||
+                echo "${{ env.AFFECTED_KERNEL_VERSIONS }}" | grep -q "$TARGET_KERNEL_VER"; then
                 TUPLE='{"target":"'"$TARGET"'","subtarget":"'"$SUBTARGET"'"}'
                 [[ $FIRST -ne 1 ]] && JSON_TARGETS="$JSON_TARGETS"','
                 JSON_TARGETS="$JSON_TARGETS""$TUPLE"
@@ -117,7 +126,9 @@ jobs:
               fi
 
               # Also test testing kernel version if kernel version is affected
-              if [ -n "$TARGET_TESTING_KERNEL_VER" ] && echo "${{ env.AFFECTED_KERNEL_VERSIONS }}" | grep -q "$TARGET_TESTING_KERNEL_VER"; then
+              if [ -n "$TARGET_TESTING_KERNEL_VER" ] &&
+                ( [ ${{ github.event_name }} = 'workflow_dispatch' ] ||
+                  echo "${{ env.AFFECTED_KERNEL_VERSIONS }}" | grep -q "$TARGET_TESTING_KERNEL_VER" ); then
                 TUPLE='{"target":"'"$TARGET"'","subtarget":"'"$SUBTARGET"'","testing":"'"$TARGET_TESTING_KERNEL_VER"'"}'
                 [[ $FIRST -ne 1 ]] && JSON_TARGETS="$JSON_TARGETS"','
                 JSON_TARGETS="$JSON_TARGETS""$TUPLE"
@@ -185,7 +196,7 @@ jobs:
       testing: ${{ matrix.testing != '' }}
 
   upload-ccache-cache-in-s3:
-    if: github.event_name == 'push' && github.repository_owner == 'openwrt'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.repository_owner == 'openwrt'
     name: Upload ccache cache to s3
     needs: [determine_targets, build]
     strategy:
