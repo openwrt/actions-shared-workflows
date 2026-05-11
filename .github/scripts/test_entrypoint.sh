@@ -361,6 +361,11 @@ for PKG in /ci/*.[ai]pk; do
 	fi
 done
 
+# Clear package name for log output so as not to confused users with the final
+# output.
+PKG_NAME=
+export PKG_NAME
+
 echo
 if [ "$RET" = 0 ]; then
 	success 'All tests passed'
