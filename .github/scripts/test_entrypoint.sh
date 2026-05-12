@@ -96,6 +96,15 @@ check_exec() {
 	done
 
 	status_warn "Version check ($file)"
+
+	# Show part of last command's output to help with debugging
+	if [ -z "$output" ]; then
+		warn 'No output to show'
+	else
+		warn 'First 10 lines of the last output:'
+		echo "$output" | head -n 10 | sed 's/^/  /'
+	fi
+
 	return 2
 }
 
