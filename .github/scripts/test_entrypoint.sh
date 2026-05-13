@@ -26,8 +26,10 @@ is_in_exec_path() {
 	echo "$1" | grep -qE '^(/bin/|/sbin/|/usr/bin/|/usr/sbin/|/usr/libexec/)'
 }
 
+# Don't check deeply-nested libraries that might be there only for internal use
+# Based on: strings /lib/ld-musl-*.so.1 | grep -E '(/lib|/usr/lib)'
 is_in_lib_path() {
-	echo "$1" | grep -qE '^(/lib/|/usr/lib/)'
+	echo "$1" | grep -qE '^(/lib|/usr/local/lib|/usr/lib)/[^/]+$'
 }
 
 is_apk() {
@@ -94,6 +96,15 @@ check_exec() {
 	done
 
 	status_warn "Version check ($file)"
+
+	# Show part of last command's output to help with debugging
+	if [ -z "$output" ]; then
+		warn 'No output to show'
+	else
+		warn 'First 10 lines of the last output:'
+		echo "$output" | head -n 10 | sed 's/^/  /'
+	fi
+
 	return 2
 }
 
@@ -358,6 +369,11 @@ for PKG in /ci/*.[ai]pk; do
 		apk del "$PKG_NAME" || true
 	fi
 done
+
+# Clear package name for log output so as not to confused users with the final
+# output.
+PKG_NAME=
+export PKG_NAME
 
 echo
 if [ "$RET" = 0 ]; then
