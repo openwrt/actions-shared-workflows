@@ -4,6 +4,9 @@ on:
   workflow_call:
     secrets:
       coverity_api_token:
+      ccache_s3_endpoint:
+      ccache_s3_bucket:
+      ccache_s3_public_url:
     outputs:
       ccache_tag:
         value: ${{ jobs.setup_build.outputs.ccache_tag }}
@@ -272,6 +275,9 @@ jobs:
     needs: setup_build
     runs-on: ubuntu-latest
 
+    env:
+      CCACHE_S3_ENDPOINT: ${{ secrets.ccache_s3_endpoint }}
+
     container:
       image: ghcr.io/${{ needs.setup_build.outputs.container }}
       options: --privileged --pid=host
@@ -400,13 +406,21 @@ jobs:
 
           echo "LLVM_FILE=$LLVM_FILE" >> "$GITHUB_ENV"
 
-      - name: Download and extract ccache cache from s3
+      - name: Download and extract ccache cache from S3
         id: restore-ccache-cache-s3
-        if: inputs.use_ccache_cache == true &&
-            ( inputs.ccache_type != 'kernel' || inputs.upload_ccache_cache != true || (github.event_name != 'push' && github.event_name != 'workflow_dispatch'))
+        if: |
+          inputs.use_ccache_cache == true &&
+          ( inputs.ccache_type != 'kernel' || (inputs.upload_ccache_cache != true && env.CCACHE_S3_ENDPOINT == '') || (github.event_name != 'push' && github.event_name != 'workflow_dispatch'))
         working-directory: openwrt
         run: |
-          S3_LINK=https://s3-ccache.openwrt-ci.ansuel.com
+          if [ -n "${{ secrets.ccache_s3_public_url }}" ]; then
+            S3_LINK="${{ secrets.ccache_s3_public_url }}"
+          elif [ -n "${{ secrets.ccache_s3_endpoint }}" ] && [ -n "${{ secrets.ccache_s3_bucket }}" ]; then
+            S3_LINK="${{ secrets.ccache_s3_endpoint }}/${{ secrets.ccache_s3_bucket }}"
+          else
+            S3_LINK="https://s3-ccache.openwrt-ci.ansuel.com"
+          fi
+          
           CCACHE_TAR=${{ needs.setup_build.outputs.ccache_name }}.tar
 
           if curl -o /dev/null -s --head --fail $S3_LINK/$CCACHE_TAR; then
@@ -438,9 +452,10 @@ jobs:
 
       - name: Restore ccache cache
         id: restore-ccache-cache
-        if: inputs.use_ccache_cache == true &&
-            ( inputs.ccache_type != 'kernel' || inputs.upload_ccache_cache != true || (github.event_name != 'push' && github.event_name != 'workflow_dispatch')) &&
-            steps.restore-ccache-cache-s3.outputs.cache-hit != 'true'
+        if: |
+          inputs.use_ccache_cache == true &&
+          ( inputs.ccache_type != 'kernel' || (inputs.upload_ccache_cache != true && env.CCACHE_S3_ENDPOINT == '') || (github.event_name != 'push' && github.event_name != 'workflow_dispatch')) &&
+          steps.restore-ccache-cache-s3.outputs.cache-hit != 'true'
         uses: actions/cache/restore@v6
         with:
           path: openwrt/.ccache
@@ -828,15 +843,17 @@ jobs:
           key: ${{ steps.restore-ccache-cache.outputs.cache-primary-key }}
 
       - name: Archive ccache
-        if: inputs.use_ccache_cache == true  && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-          inputs.upload_ccache_cache == true
+        if: |
+          inputs.use_ccache_cache == true && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+          (inputs.upload_ccache_cache == true || env.CCACHE_S3_ENDPOINT != '')
         shell: su buildbot -c "sh -e {0}"
         working-directory: openwrt
         run: tar --exclude='.ccache/tmp' -cf ${{ needs.setup_build.outputs.ccache_name }}.tar .ccache
 
       - name: Upload ccache cache
-        if: inputs.use_ccache_cache == true && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-          inputs.upload_ccache_cache == true
+        if: |
+          inputs.use_ccache_cache == true && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+          (inputs.upload_ccache_cache == true || env.CCACHE_S3_ENDPOINT != '')
         uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.target }}-${{ inputs.subtarget }}${{ inputs.testing == true && '-testing' || '' }}-ccache-cache

@@ -36,6 +36,7 @@ jobs:
           - target: x86
             subtarget: 64
     uses: ./.github/workflows/reusable_build.yml
+    secrets: inherit
     with:
       container_name: toolchain
       target: ${{ matrix.target }}

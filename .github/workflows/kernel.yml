@@ -168,6 +168,7 @@ jobs:
        matrix:
          include: ${{fromJson(needs.determine_targets.outputs.targets_subtargets)}}
     uses: ./.github/workflows/reusable_build.yml
+    secrets: inherit
     with:
       container_name: toolchain
       target: ${{ matrix.target }}
