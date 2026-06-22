@@ -87,7 +87,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set lower case owner name
         id: lower_owner
@@ -180,7 +180,7 @@ jobs:
 
     steps:
       - name: Checkout master directory
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: openwrt
 
@@ -293,35 +293,35 @@ jobs:
           done
 
       - name: Checkout master directory
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: openwrt
           fetch-depth: 0
 
       - name: Checkout packages feed
         if: inputs.include_feeds == true
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: openwrt/packages
           path: openwrt/feeds/packages
 
       - name: Checkout luci feed
         if: inputs.include_feeds == true
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: openwrt/luci
           path: openwrt/feeds/luci
 
       - name: Checkout routing feed
         if: inputs.include_feeds == true
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: openwrt/routing
           path: openwrt/feeds/routing
 
       - name: Checkout telephony feed
         if: inputs.include_feeds == true
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: openwrt/telephony
           path: openwrt/feeds/telephony
@@ -451,7 +451,7 @@ jobs:
       - name: Checkout OpenWrt keyring
         if: inputs.build_toolchain == false && ((steps.parse-toolchain.outputs.toolchain-type != 'internal' && steps.parse-toolchain.outputs.toolchain-type != 'external_container') ||
           steps.parse-prebuilt-llvm.outputs.llvm-type == 'external')
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: openwrt/keyring
           path: keyring
