@@ -9,6 +9,11 @@ on:
       force_generic_tests:
         type: boolean
         default: true
+      matrix:
+        description: 'JSON string of the build matrix'
+        required: false
+        type: string
+        default: ''
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -20,48 +25,27 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - arch: aarch64_generic
-            target: armsr-armv8
-            runtime_test: true
-
-          - arch: arm_cortex-a15_neon-vfpv4
-            target: armsr-armv7
-            runtime_test: true
-
-          - arch: arm_cortex-a9_vfpv3-d16
-            target: mvebu-cortexa9
-            runtime_test: false
-
-          - arch: i386_pentium-mmx
-            target: x86-geode
-            runtime_test: true
-
-          - arch: mips_24kc
-            target: ath79-generic
-            runtime_test: true
-
-          - arch: mipsel_24kc
-            target: mt7621
-            runtime_test: false
-
-          - arch: powerpc_464fp
-            target: apm821xx-nand
-            runtime_test: false
-
-          - arch: powerpc_8548
-            target: mpc85xx-p1010
-            runtime_test: false
-
-            # Workaround: riscv64_riscv64 was renamed to riscv64_generic
-          - arch: ${{ (github.base_ref == 'openwrt-24.10' || github.base_ref == 'openwrt-23.05') && 'riscv64_riscv64' || 'riscv64_generic' }}
-            target: sifiveu-generic
-            runtime_test: false
-
-          - arch: x86_64
-            target: x86-64
-            runtime_test: true
+      matrix: >-
+        ${{
+          inputs.matrix != '' && fromJSON(inputs.matrix) ||
+          fromJSON(
+            format(
+              '{{"include": [
+                {{"arch": "aarch64_generic", "target": "armsr-armv8", "runtime_test": true}},
+                {{"arch": "arm_cortex-a15_neon-vfpv4", "target": "armsr-armv7", "runtime_test": true}},
+                {{"arch": "arm_cortex-a9_vfpv3-d16", "target": "mvebu-cortexa9", "runtime_test": false}},
+                {{"arch": "i386_pentium-mmx", "target": "x86-geode", "runtime_test": true}},
+                {{"arch": "mips_24kc", "target": "ath79-generic", "runtime_test": true}},
+                {{"arch": "mipsel_24kc", "target": "mt7621", "runtime_test": false}},
+                {{"arch": "powerpc_464fp", "target": "apm821xx-nand", "runtime_test": false}},
+                {{"arch": "powerpc_8548", "target": "mpc85xx-p1010", "runtime_test": false}},
+                {{"arch": "{0}", "target": "sifiveu-generic", "runtime_test": false}},
+                {{"arch": "x86_64", "target": "x86-64", "runtime_test": true}}
+              ]}}',
+              (github.base_ref == 'openwrt-24.10' || github.base_ref == 'openwrt-23.05') && 'riscv64_riscv64' || 'riscv64_generic'
+            )
+          )
+        }}
 
     steps:
       - name: Remove unused Android SDK, .NET, Swift, GHC
