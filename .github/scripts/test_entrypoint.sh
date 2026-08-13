@@ -270,10 +270,19 @@ if is_opkg; then
 	# it's possible to do it for the local feed only, which has signing removed.
 	# This fixes running CI tests.
 	sed -i '/check_signature/d' /etc/opkg.conf
+	# The kmods feed only exists for the exact kernel the rootfs image was
+	# built with. Once the branch moves to a newer kernel, the old kmods
+	# directory is removed from the download server and the update fails
+	# with a 404, taking down every runtime test. The tests install the
+	# built packages from the local feed and do not need the kmods feed,
+	# so drop it instead of failing on it.
+	sed -i '/\/kmods\//d' /etc/opkg/distfeeds.conf
 	opkg update
 	opkg install $TEST_PACKAGES
 elif is_apk; then
 	echo "/ci/packages.adb" >> /etc/apk/repositories.d/distfeeds.list
+	# Drop the kmods feed for the same reason as in the opkg case above.
+	sed -i '/\/kmods\//d' /etc/apk/repositories.d/distfeeds.list
 	apk update
 	apk add $TEST_PACKAGES
 fi
