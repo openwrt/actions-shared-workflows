@@ -1,0 +1,32 @@
+name: Manual Test Feeds Build macOS
+
+# Self-test for feeds-package-test-build-macos.yml from this repository. Feed
+# repositories call the reusable workflow directly (see docs/macos-feeds-build.md).
+
+on:
+  workflow_dispatch:
+    inputs:
+      feed_repository:
+        description: Feed repository to test (owner/name)
+        required: false
+        default: openwrt/packages
+        type: string
+      packages:
+        description: Space-separated packages to build (empty = the feed's default test set)
+        required: false
+        default: ''
+        type: string
+      branch:
+        description: OpenWrt branch (empty = master)
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  test-macos-feeds:
+    uses: ./.github/workflows/feeds-package-test-build-macos.yml
+    with:
+      feed_repository: ${{ inputs.feed_repository }}
+      packages: ${{ inputs.packages }}
+      branch: ${{ inputs.branch }}
+      sdk_url: ${{ vars.MACOS_SDK_URL || 'https://s3-ccache.openwrt-ci.ansuel.com' }}
