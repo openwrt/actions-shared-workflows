@@ -1,0 +1,254 @@
+name: Build macOS toolchain
+
+# Builds the OpenWrt host tools and cross toolchain natively on a macOS runner
+# and publishes them to S3, so that feeds-package-test-build-macos.yml only has
+# to restore them. This is the macOS counterpart of the prebuilt SDK container
+# that multi-arch-test-build.yml consumes via openwrt/gh-action-sdk.
+#
+# Published objects (all under the bucket root):
+#   macos-tools-<branch>-<core_sha>.tar.zst              staging_dir/host
+#   macos-toolchain-<arch>-<branch>-<toolchain_sha>.tar.zst   staging_dir/toolchain-* and target-*
+#   macos-sdk-<branch>-<arch>.json                        manifest, written last
+#
+# The manifest pins the openwrt commit the archives were built from; consumers
+# check out exactly that commit, so a restored toolchain can never be stale
+# relative to the tree it is used with.
+
+on:
+  workflow_call:
+    inputs:
+      branch:
+        description: OpenWrt core branch to build the toolchain from
+        type: string
+        default: master
+      matrix:
+        description: JSON string of the build matrix (arch/target pairs)
+        type: string
+        default: ''
+      force:
+        description: Rebuild and republish even if the published toolchain already matches the core tree
+        type: boolean
+        default: false
+    secrets:
+      s3_endpoint:
+      s3_bucket:
+      s3_access_key:
+      s3_secret_key:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.arch }} toolchain (${{ inputs.branch }})
+    runs-on: macos-26
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix: >-
+        ${{
+          inputs.matrix != '' && fromJSON(inputs.matrix) ||
+          fromJSON('{"include": [
+            {"arch": "aarch64_generic", "target": "armsr-armv8"},
+            {"arch": "arm_cortex-a9_vfpv3-d16", "target": "mvebu-cortexa9"}
+          ]}')
+        }}
+
+    env:
+      BRANCH: ${{ inputs.branch }}
+      ARCH: ${{ matrix.arch }}
+      TARGET: ${{ matrix.target }}
+      BUILD_DIR: /Volumes/OpenWrt/build
+      MANIFEST: macos-sdk-${{ inputs.branch }}-${{ matrix.arch }}.json
+
+    steps:
+      - name: Set up case-sensitive build volume
+        run: |
+          hdiutil create -size 40g -type SPARSE -fs "Case-sensitive APFS" -volname OpenWrt "$RUNNER_TEMP/OpenWrt.sparseimage"
+          hdiutil attach "$RUNNER_TEMP/OpenWrt.sparseimage"
+          mkdir -p "$BUILD_DIR"
+          df -h / /Volumes/OpenWrt
+
+      - name: Install build dependencies
+        run: |
+          # The runner image ships third-party taps; drop them so formulae
+          # resolve from homebrew/core only.
+          for tap in $(brew tap | grep -v '^homebrew/'); do
+            brew untap --force "$tap" || echo "::warning::failed to untap $tap"
+          done
+          brew install \
+            automake \
+            bash \
+            coreutils \
+            diffutils \
+            findutils \
+            gawk \
+            git-extras \
+            gnu-getopt \
+            gnu-sed \
+            gpatch \
+            grep \
+            make \
+            minio-mc \
+            ncurses \
+            pkg-config \
+            python-setuptools \
+            quilt \
+            swig \
+            wget
+
+          # $GITHUB_PATH entries are prepended, so later lines end up earlier
+          # in PATH: GNU tools must come after the system directories here.
+          BREW_PREFIX="$(brew --prefix)"
+          for dir in \
+            "$BREW_PREFIX/bin" \
+            "$BREW_PREFIX/opt/coreutils/bin" \
+            "$BREW_PREFIX/opt/findutils/libexec/gnubin" \
+            "$BREW_PREFIX/opt/gnu-getopt/bin" \
+            "$BREW_PREFIX/opt/gnu-sed/bin" \
+            "$BREW_PREFIX/opt/make/libexec/gnubin" \
+            "$BREW_PREFIX/opt/ncurses/bin" \
+            "$BREW_PREFIX/opt/gawk/libexec/gnubin"; do
+            echo "$dir" >> "$GITHUB_PATH"
+          done
+          echo "PKG_CONFIG_PATH=$BREW_PREFIX/opt/ncurses/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
+
+      - name: Clone OpenWrt core
+        id: core
+        run: |
+          # feeds-package-test-build-macos.yml only looks these branches up
+          case "$BRANCH" in
+            main|master|openwrt-[0-9]*\.[0-9]*)
+              ;;
+            *)
+              echo "::error::Unsupported branch '$BRANCH' (expected main, master or openwrt-X.Y)"
+              exit 1
+              ;;
+          esac
+
+          git clone --depth 1 --branch "$BRANCH" https://github.com/openwrt/openwrt.git "$BUILD_DIR"
+          cd "$BUILD_DIR"
+          BOARD="${TARGET%%-*}"
+          SUBTARGET="${TARGET#*-}"
+          # Host tools depend only on these trees; the toolchain additionally
+          # depends on the target's kernel version (KERNEL_PATCHVER) and CPU
+          # type (the subtarget's target.mk).
+          CORE_SHA=$(git rev-parse HEAD:tools HEAD:toolchain HEAD:include HEAD:config HEAD:Config.in HEAD:Makefile HEAD:rules.mk | shasum -a 256 | cut -d' ' -f1)
+          TOOLCHAIN_SHA=$({ echo "$CORE_SHA"; git ls-tree HEAD -- "target/linux/$BOARD/Makefile" "target/linux/$BOARD/$SUBTARGET/target.mk"; } | shasum -a 256 | cut -d' ' -f1)
+          {
+            echo "commit=$(git rev-parse HEAD)"
+            echo "core_sha=$CORE_SHA"
+            echo "toolchain_sha=$TOOLCHAIN_SHA"
+            echo "image_version=${ImageVersion:-unknown}"
+          } >> "$GITHUB_OUTPUT"
+          echo "openwrt $BRANCH @ $(git rev-parse HEAD) (core $CORE_SHA, toolchain $TOOLCHAIN_SHA, runner image ${ImageVersion:-unknown})"
+
+      - name: Check published toolchain
+        id: check
+        env:
+          S3_ENDPOINT: ${{ secrets.s3_endpoint }}
+          S3_BUCKET: ${{ secrets.s3_bucket }}
+          S3_ACCESS_KEY: ${{ secrets.s3_access_key }}
+          S3_SECRET_KEY: ${{ secrets.s3_secret_key }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          if [ -z "$S3_ENDPOINT" ] || [ -z "$S3_BUCKET" ] || [ -z "$S3_ACCESS_KEY" ] || [ -z "$S3_SECRET_KEY" ]; then
+            echo "S3 credentials are not configured: the toolchain will be built but not published."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+
+          # Keep the credentials out of ~/.mc: the build steps that follow run
+          # third-party build systems.
+          MC_DIR="$RUNNER_TEMP/mc-check"
+          trap 'rm -rf "$MC_DIR"' EXIT
+          mcc() { mc --config-dir "$MC_DIR" "$@"; }
+
+          # mc wants the bare endpoint, without a bucket or path component
+          S3_ENDPOINT=$(echo "$S3_ENDPOINT" | sed -E 's|^([^/]+//[^/]+).*|\1|')
+          mcc alias set s3 "$S3_ENDPOINT" "$S3_ACCESS_KEY" "$S3_SECRET_KEY" > /dev/null
+
+          if [ "$FORCE" = "true" ]; then
+            echo "Rebuild forced."
+            exit 0
+          fi
+          if ! mcc cat "s3/$S3_BUCKET/$MANIFEST" > "$RUNNER_TEMP/published.json" 2>/dev/null; then
+            echo "No toolchain published for $BRANCH/$ARCH yet."
+            exit 0
+          fi
+          if [ "$(jq -r .core_sha "$RUNNER_TEMP/published.json")" = "${{ steps.core.outputs.core_sha }}" ] &&
+             [ "$(jq -r .toolchain_sha "$RUNNER_TEMP/published.json")" = "${{ steps.core.outputs.toolchain_sha }}" ] &&
+             [ "$(jq -r .image_version "$RUNNER_TEMP/published.json")" = "${{ steps.core.outputs.image_version }}" ]; then
+            echo "Published toolchain (openwrt $(jq -r .openwrt_commit "$RUNNER_TEMP/published.json")) already matches; nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Published toolchain is out of date (openwrt $(jq -r .openwrt_commit "$RUNNER_TEMP/published.json")); rebuilding."
+          fi
+
+      - name: Configure target
+        if: steps.check.outputs.skip != 'true'
+        working-directory: ${{ env.BUILD_DIR }}
+        run: |
+          echo "CONFIG_TARGET_${TARGET%%-*}=y" > .config
+          echo "CONFIG_TARGET_${TARGET%%-*}_${TARGET#*-}=y" >> .config
+          make defconfig
+
+      - name: Build host tools
+        if: steps.check.outputs.skip != 'true'
+        working-directory: ${{ env.BUILD_DIR }}
+        run: make tools/install -j"$(sysctl -n hw.logicalcpu)" BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+      - name: Build toolchain
+        if: steps.check.outputs.skip != 'true'
+        working-directory: ${{ env.BUILD_DIR }}
+        run: make toolchain/install -j"$(sysctl -n hw.logicalcpu)" BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+      - name: Publish toolchain to S3
+        if: >-
+          steps.check.outputs.skip != 'true' && steps.check.outputs.publish == 'true' &&
+          (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        working-directory: ${{ env.BUILD_DIR }}
+        env:
+          S3_ENDPOINT: ${{ secrets.s3_endpoint }}
+          S3_BUCKET: ${{ secrets.s3_bucket }}
+          S3_ACCESS_KEY: ${{ secrets.s3_access_key }}
+          S3_SECRET_KEY: ${{ secrets.s3_secret_key }}
+        run: |
+          set -o pipefail
+          MC_DIR="$RUNNER_TEMP/mc-publish"
+          trap 'rm -rf "$MC_DIR"' EXIT
+          mcc() { mc --config-dir "$MC_DIR" "$@"; }
+          S3_ENDPOINT=$(echo "$S3_ENDPOINT" | sed -E 's|^([^/]+//[^/]+).*|\1|')
+          mcc alias set s3 "$S3_ENDPOINT" "$S3_ACCESS_KEY" "$S3_SECRET_KEY" > /dev/null
+
+          TOOLS_TAR="macos-tools-$BRANCH-${{ steps.core.outputs.core_sha }}.tar.zst"
+          TOOLCHAIN_TAR="macos-toolchain-$ARCH-$BRANCH-${{ steps.core.outputs.toolchain_sha }}.tar.zst"
+
+          tar -cf - staging_dir/host | zstd -T0 -3 | mcc pipe "s3/$S3_BUCKET/$TOOLS_TAR"
+          tar -cf - staging_dir/toolchain-* staging_dir/target-* | zstd -T0 -3 | mcc pipe "s3/$S3_BUCKET/$TOOLCHAIN_TAR"
+
+          # The manifest goes last so consumers never see it before the archives it points to.
+          jq -n \
+            --arg openwrt_commit "${{ steps.core.outputs.commit }}" \
+            --arg core_sha "${{ steps.core.outputs.core_sha }}" \
+            --arg toolchain_sha "${{ steps.core.outputs.toolchain_sha }}" \
+            --arg image_version "${{ steps.core.outputs.image_version }}" \
+            --arg tools "$TOOLS_TAR" \
+            --arg toolchain "$TOOLCHAIN_TAR" \
+            '$ARGS.named' | tee "$RUNNER_TEMP/$MANIFEST" | mcc pipe "s3/$S3_BUCKET/$MANIFEST"
+
+          {
+            echo "### macOS toolchain published: $BRANCH / $ARCH"
+            echo '```json'
+            cat "$RUNNER_TEMP/$MANIFEST"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload logs
+        if: always() && steps.check.outputs.skip != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-toolchain-${{ inputs.branch }}-${{ matrix.arch }}-logs
+          path: /Volumes/OpenWrt/build/logs
+          if-no-files-found: ignore

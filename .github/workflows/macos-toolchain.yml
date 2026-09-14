@@ -1,0 +1,46 @@
+name: Publish macOS toolchain
+
+# Nightly producer for the macOS feeds package test build. It runs outside the
+# PR path, holds the S3 write credentials, and only rebuilds when the relevant
+# parts of the OpenWrt core tree (or the runner image) changed.
+
+on:
+  schedule:
+    - cron: '30 2 * * *'
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: OpenWrt core branch to build the toolchain from (master or openwrt-X.Y)
+        required: false
+        default: master
+        type: string
+      force:
+        description: Rebuild even if the published toolchain already matches the core tree
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  build:
+    name: ${{ matrix.branch }}
+    if: github.event_name == 'workflow_dispatch' || github.repository_owner == 'openwrt'
+    strategy:
+      fail-fast: false
+      # one branch at a time: each one runs a matrix of macOS jobs
+      max-parallel: 1
+      matrix:
+        branch: >-
+          ${{
+            github.event_name == 'workflow_dispatch' &&
+            fromJSON(format('["{0}"]', inputs.branch || 'master')) ||
+            fromJSON('["master", "openwrt-25.12", "openwrt-24.10"]')
+          }}
+    uses: ./.github/workflows/reusable_macos-toolchain.yml
+    with:
+      branch: ${{ matrix.branch }}
+      force: ${{ github.event_name == 'workflow_dispatch' && inputs.force || false }}
+    secrets:
+      s3_endpoint: ${{ secrets.ccache_s3_endpoint || secrets.s3_endpoint }}
+      s3_bucket: ${{ secrets.ccache_s3_bucket || secrets.s3_bucket }}
+      s3_access_key: ${{ secrets.ccache_s3_access_key || secrets.s3_access_key }}
+      s3_secret_key: ${{ secrets.ccache_s3_secret_key || secrets.s3_secret_key }}

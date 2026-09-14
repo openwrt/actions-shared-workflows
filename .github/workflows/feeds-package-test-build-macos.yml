@@ -1,0 +1,429 @@
+name: Feeds Package Test Build macOS
+
+# macOS counterpart of multi-arch-test-build.yml. There is no prebuilt SDK
+# container for macOS, so this workflow restores the host tools and cross
+# toolchain published by macos-toolchain.yml and then builds the changed feed
+# packages natively, running the same checks openwrt/gh-action-sdk runs on
+# Linux. It never builds the toolchain itself and needs no secrets. Runtime
+# tests are not possible on macOS runners; the Linux workflow remains the gate.
+
+on:
+  workflow_call:
+    inputs:
+      matrix:
+        description: 'JSON string of the build matrix'
+        required: false
+        type: string
+        default: ''
+      packages:
+        description: 'Space-separated packages to build (empty = changed packages, or the feed default set)'
+        required: false
+        type: string
+        default: ''
+      feed_repository:
+        description: 'Feed repository (owner/name) to test instead of the checked-out workspace'
+        required: false
+        type: string
+        default: ''
+      branch:
+        description: 'OpenWrt branch (empty = derived from the pull request base branch)'
+        required: false
+        type: string
+        default: ''
+      sdk_url:
+        description: 'Base URL serving the published macOS toolchain manifests and archives'
+        required: false
+        type: string
+        default: https://s3-ccache.openwrt-ci.ansuel.com
+
+permissions:
+  contents: read
+
+# github.workflow is the caller's name here; keep the group distinct from
+# multi-arch-test-build.yml so both can be called from one workflow.
+concurrency:
+  group: ${{ github.workflow }}-macos-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: Test ${{ matrix.arch }} on macOS
+    runs-on: macos-26
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix: >-
+        ${{
+          inputs.matrix != '' && fromJSON(inputs.matrix) ||
+          fromJSON('{"include": [
+            {"arch": "aarch64_generic", "target": "armsr-armv8"},
+            {"arch": "arm_cortex-a9_vfpv3-d16", "target": "mvebu-cortexa9"}
+          ]}')
+        }}
+
+    env:
+      ARCH: ${{ matrix.arch }}
+      TARGET: ${{ matrix.target }}
+      BUILD_DIR: /Volumes/OpenWrt/build
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Determine branch name
+        env:
+          INPUT_BRANCH: ${{ inputs.branch }}
+        run: |
+          BRANCH="${INPUT_BRANCH:-${GITHUB_BASE_REF#refs/heads/}}"
+          case "$BRANCH" in
+            main|master|openwrt-[0-9]*\.[0-9]*)
+              ;;
+            *)
+              BRANCH="master"
+              ;;
+          esac
+          echo "Building for $BRANCH"
+          echo "BRANCH=$BRANCH" >> $GITHUB_ENV
+
+      - name: Set up case-sensitive build volume
+        run: |
+          hdiutil create -size 40g -type SPARSE -fs "Case-sensitive APFS" -volname OpenWrt "$RUNNER_TEMP/OpenWrt.sparseimage"
+          hdiutil attach "$RUNNER_TEMP/OpenWrt.sparseimage"
+          mkdir -p "$BUILD_DIR"
+
+      - name: Determine feed and packages
+        env:
+          FEED_REPOSITORY: ${{ inputs.feed_repository }}
+          INPUT_PACKAGES: ${{ inputs.packages }}
+        run: |
+          if [ -n "$FEED_REPOSITORY" ]; then
+            FEED_DIR=/Volumes/OpenWrt/feed
+            git clone --depth 1 --branch "$BRANCH" "https://github.com/$FEED_REPOSITORY.git" "$FEED_DIR"
+            REPOSITORY_NAME="${FEED_REPOSITORY#*/}"
+          else
+            FEED_DIR="$GITHUB_WORKSPACE"
+            REPOSITORY_NAME="${GITHUB_REPOSITORY#*/}"
+
+            # only detect packages with changes
+            PKG_ROOTS=$(find . -name Makefile | \
+              grep -v ".*/src/Makefile" | \
+              sed -e 's@./\(.*\)/Makefile@\1/@')
+            CHANGES=$(git diff --diff-filter=d --name-only origin/$BRANCH...)
+
+            for ROOT in $PKG_ROOTS; do
+              for CHANGE in $CHANGES; do
+                if [[ "$CHANGE" == "$ROOT"* ]]; then
+                  PACKAGES+=$(echo "$ROOT" | sed -e 's@\(.*/\)*\(.*\)/@\2 @')
+                  break
+                fi
+              done
+            done
+          fi
+
+          if [ -n "$INPUT_PACKAGES" ]; then
+            PACKAGES="$INPUT_PACKAGES"
+          fi
+
+          # fallback to test packages if nothing explicitly changes this is
+          # should run if other mechanics in packages.git changed
+          if [ "$REPOSITORY_NAME" = "routing" ]; then
+            PACKAGES="${PACKAGES:-bird2 cjdns olsrd}"
+          elif [ "$REPOSITORY_NAME" = "telephony" ]; then
+            PACKAGES="${PACKAGES:-asterisk siproxd freeswitch}"
+          elif [ "$REPOSITORY_NAME" = "luci" ]; then
+            PACKAGES="${PACKAGES:-luci-app-commands}"
+          else
+            PACKAGES="${PACKAGES:-vim attendedsysupgrade-common bmon}"
+          fi
+
+          echo "Building $PACKAGES from $FEED_DIR"
+          echo "FEED_DIR=$FEED_DIR" >> $GITHUB_ENV
+          echo "PACKAGES=$PACKAGES" >> $GITHUB_ENV
+
+      - name: Install build dependencies
+        run: |
+          # The runner image ships third-party taps; drop them so formulae
+          # resolve from homebrew/core only.
+          for tap in $(brew tap | grep -v '^homebrew/'); do
+            brew untap --force "$tap" || echo "::warning::failed to untap $tap"
+          done
+          brew install \
+            automake \
+            bash \
+            coreutils \
+            diffutils \
+            findutils \
+            gawk \
+            git-extras \
+            gnu-getopt \
+            gnu-sed \
+            gpatch \
+            grep \
+            make \
+            ncurses \
+            pkg-config \
+            python-setuptools \
+            quilt \
+            shfmt \
+            swig \
+            wget
+
+          # $GITHUB_PATH entries are prepended, so later lines end up earlier
+          # in PATH: GNU tools must come after the system directories here.
+          BREW_PREFIX="$(brew --prefix)"
+          for dir in \
+            "$BREW_PREFIX/bin" \
+            "$BREW_PREFIX/opt/coreutils/bin" \
+            "$BREW_PREFIX/opt/findutils/libexec/gnubin" \
+            "$BREW_PREFIX/opt/gnu-getopt/bin" \
+            "$BREW_PREFIX/opt/gnu-sed/bin" \
+            "$BREW_PREFIX/opt/make/libexec/gnubin" \
+            "$BREW_PREFIX/opt/ncurses/bin" \
+            "$BREW_PREFIX/opt/gawk/libexec/gnubin"; do
+            echo "$dir" >> "$GITHUB_PATH"
+          done
+          echo "PKG_CONFIG_PATH=$BREW_PREFIX/opt/ncurses/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
+
+      - name: Restore prebuilt toolchain
+        shell: bash
+        env:
+          SDK_URL: ${{ inputs.sdk_url }}
+        run: |
+          SDK_URL="${SDK_URL%/}"
+          MANIFEST="macos-sdk-$BRANCH-$ARCH.json"
+          if ! curl -fsSL "$SDK_URL/$MANIFEST" -o "$RUNNER_TEMP/manifest.json"; then
+            echo "::error::No prebuilt macOS toolchain is published for $BRANCH/$ARCH ($SDK_URL/$MANIFEST). Run the 'Publish macOS toolchain' workflow first."
+            exit 1
+          fi
+          COMMIT=$(jq -r .openwrt_commit "$RUNNER_TEMP/manifest.json")
+          echo "Toolchain was built from openwrt $COMMIT"
+
+          # Check out exactly the core commit the toolchain was built from.
+          git init -q "$BUILD_DIR"
+          git -C "$BUILD_DIR" remote add origin https://github.com/openwrt/openwrt.git
+          git -C "$BUILD_DIR" fetch -q --depth 1 origin "$COMMIT"
+          git -C "$BUILD_DIR" checkout -q FETCH_HEAD
+
+          # Backdate the core tree so the restored build stamps stay newer than
+          # their sources; otherwise make would rebuild tools and toolchain.
+          find "$BUILD_DIR" -type f -not -path '*/.git/*' -exec touch -t 202001010000.00 {} +
+
+          for key in tools toolchain; do
+            ARCHIVE=$(jq -r ".$key" "$RUNNER_TEMP/manifest.json")
+            echo "Restoring $ARCHIVE"
+            curl -fsSL "$SDK_URL/$ARCHIVE" | zstd -dc -T0 | tar -C "$BUILD_DIR" -xf -
+          done
+
+          {
+            echo "### macOS toolchain: $BRANCH / $ARCH"
+            echo "Built from openwrt \`$COMMIT\` (core \`$(jq -r .core_sha "$RUNNER_TEMP/manifest.json")\`, runner image \`$(jq -r .image_version "$RUNNER_TEMP/manifest.json")\`)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Configure feeds and target
+        working-directory: ${{ env.BUILD_DIR }}
+        run: |
+          # Same feed setup as openwrt/gh-action-sdk: the default feeds from the
+          # GitHub mirrors plus the feed under test as packages_ci.
+          sed \
+            -e 's,https://git.openwrt.org/feed/,https://github.com/openwrt/,' \
+            -e 's,https://git.openwrt.org/openwrt/,https://github.com/openwrt/,' \
+            -e 's,https://git.openwrt.org/project/,https://github.com/openwrt/,' \
+            feeds.conf.default > feeds.conf
+          echo "src-link packages_ci $FEED_DIR" >> feeds.conf
+          cat feeds.conf
+
+          ./scripts/feeds update -a
+
+          echo "CONFIG_TARGET_${TARGET%%-*}=y" > .config
+          echo "CONFIG_TARGET_${TARGET%%-*}_${TARGET#*-}=y" >> .config
+          make defconfig
+
+      - name: Check packages
+        working-directory: ${{ env.BUILD_DIR }}
+        run: |
+          # The checks openwrt/gh-action-sdk runs before building.
+          for PKG in $PACKAGES; do
+            # -d m enables the newly installed packages as modules, which the SDK
+            # gets from its CONFIG_ALL default. CONFIG_ALL=y is not an option in
+            # the full buildroot: it also selects kmods (kmod-b43) that change the
+            # host tools set, so the restored tools would be rebuilt.
+            echo "::group::feeds install -p packages_ci -f -d m $PKG"
+            ./scripts/feeds install -p packages_ci -f -d m "$PKG"
+            echo "::endgroup::"
+
+            echo "::group::make package/$PKG/download"
+            make BUILD_LOG=1 "package/$PKG/download" V=s
+            echo "::endgroup::"
+
+            echo "::group::make package/$PKG/check"
+            make BUILD_LOG=1 "package/$PKG/check" V=s 2>&1 | tee "$RUNNER_TEMP/check.log"
+            RET=${PIPESTATUS[0]}
+            echo "::endgroup::"
+            if [ "$RET" -ne 0 ]; then
+              echo "::error::Package check failed for $PKG"
+              exit "$RET"
+            fi
+            if grep -qE "HASH does not match |HASH uses deprecated hash,|HASH is missing," "$RUNNER_TEMP/check.log"; then
+              echo "::error::Package HASH check failed for $PKG"
+              exit 1
+            fi
+
+            PATCHES_DIR=$(find "$FEED_DIR" -type d -path "*/$PKG/patches" -not -path '*/.git/*' | head -n1)
+            if [ -d "$PATCHES_DIR" ]; then
+              echo "::group::make package/$PKG/refresh"
+              make BUILD_LOG=1 "package/$PKG/refresh" V=s
+              echo "::endgroup::"
+              if ! git -C "$PATCHES_DIR" diff --quiet -- .; then
+                echo "::error::Dirty patches detected in $PKG, please refresh and review the diff"
+                git -C "$PATCHES_DIR" --no-pager diff -- .
+                git -C "$PATCHES_DIR" checkout -- .
+                exit 1
+              fi
+              echo "::group::make package/$PKG/clean"
+              make BUILD_LOG=1 "package/$PKG/clean" V=s
+              echo "::endgroup::"
+            fi
+
+            FILES_DIR=$(find "$FEED_DIR" -type d -path "*/$PKG/files" -not -path '*/.git/*' | head -n1)
+            if [ -d "$FILES_DIR" ]; then
+              find "$FILES_DIR" -name "*.init" -exec shfmt -w -sr -s '{}' \;
+              if ! git -C "$FILES_DIR" diff --quiet -- .; then
+                echo "::error::init script must be formatted. Please run through shfmt -w -sr -s"
+                git -C "$FILES_DIR" --no-pager diff -- .
+                git -C "$FILES_DIR" checkout -- .
+                exit 1
+              fi
+            fi
+          done
+
+      - name: Compile packages
+        working-directory: ${{ env.BUILD_DIR }}
+        run: |
+          make \
+            -f .config \
+            -f tmp/.packagedeps \
+            -f <(echo "\$(info \$(sort \$(package-y) \$(package-m)))"; echo -en "a:\n\t@:") \
+              | tr ' ' '\n' > enabled-package-subdirs.txt
+
+          # Prints "kernel" if building package/feeds/packages_ci/$(PKG) would
+          # (transitively) build the Linux kernel, which is not prebuilt here.
+          cat > "$RUNNER_TEMP/kernel-deps.mk" <<'MK'
+          deps_of = $(sort $(foreach t,$(1),$($(t))))
+          closure = $(if $(filter-out $(2),$(1)),$(call closure,$(call deps_of,$(filter-out $(2),$(1))),$(sort $(2) $(1))),$(2))
+          $(info $(if $(filter package/kernel/linux/compile,$(call closure,package/feeds/packages_ci/$(PKG)/compile,)),kernel,))
+          a: ; @:
+          MK
+
+          RET=0
+          COMPILED=""
+          for PKG in $PACKAGES; do
+            if ! grep -m1 -qE "(^|/)$PKG$" enabled-package-subdirs.txt; then
+              echo "::warning file=$PKG::Skipping $PKG due to unsupported architecture"
+              continue
+            fi
+            if make -s curdir=package PKG="$PKG" -f .config -f tmp/.packagedeps -f "$RUNNER_TEMP/kernel-deps.mk" a | grep -qx kernel; then
+              echo "::warning file=$PKG::Skipping $PKG on macOS: it depends on the Linux kernel build, which is not prebuilt"
+              continue
+            fi
+            echo "::group::make package/$PKG/compile"
+            make BUILD_LOG=1 CONFIG_AUTOREMOVE=y V=s -j"$(sysctl -n hw.logicalcpu)" "package/$PKG/compile" || RET=$?
+            echo "::endgroup::"
+            if [ "$RET" -ne 0 ]; then
+              ret=$RET .github/workflows/scripts/show_build_failures.sh logs || true
+              break
+            fi
+            COMPILED="$COMPILED $PKG"
+          done
+
+          echo "::group::make package/index"
+          make CONFIG_SIGNED_PACKAGES= V=s package/index
+          echo "::endgroup::"
+
+          # BUILD_LOG only writes these when tools or toolchain actually build
+          if [ -d logs/tools ] || [ -d logs/toolchain ]; then
+            echo "::error::Host tools or toolchain were rebuilt instead of restored; republish them with the 'Publish macOS toolchain' workflow"
+            RET=1
+          fi
+          if [ -z "$COMPILED" ] && [ "$RET" -eq 0 ]; then
+            echo "::warning::No package was compiled for $ARCH"
+          fi
+          echo "Compiled for $ARCH:${COMPILED:- none}" >> "$GITHUB_STEP_SUMMARY"
+
+          exit "$RET"
+
+      - name: Move created packages to project dir
+        if: always()
+        run: |
+          cp -v "$BUILD_DIR/bin/packages/$ARCH/packages_ci/"* . || true
+          cp -r "$BUILD_DIR/logs" . || true
+
+      - name: Collect metadata
+        if: always()
+        run: |
+          MERGE_ID=$(git rev-parse --short HEAD)
+          if git rev-parse -q --verify HEAD^2 >/dev/null; then
+            BASE_ID=$(git rev-parse --short HEAD^1)
+            HEAD_ID=$(git rev-parse --short HEAD^2)
+          else
+            # not a pull request merge commit (workflow_dispatch, push)
+            BASE_ID=$(git rev-parse --short HEAD^1 2>/dev/null || echo "$MERGE_ID")
+            HEAD_ID=$MERGE_ID
+          fi
+          PRNUMBER=${GITHUB_REF_NAME%/merge}
+          echo "MERGE_ID=$MERGE_ID" >> $GITHUB_ENV
+          echo "BASE_ID=$BASE_ID" >> $GITHUB_ENV
+          echo "HEAD_ID=$HEAD_ID" >> $GITHUB_ENV
+          echo "PRNUMBER=$PRNUMBER" >> $GITHUB_ENV
+          echo "ARCHIVE_NAME=$ARCH-macos-PR${PRNUMBER//\//-}-$MERGE_ID" >> $GITHUB_ENV
+
+      - name: Generate metadata
+        if: always()
+        run: |
+          cat << _EOF_ > PKG-INFO
+          Metadata-Version: 2.1
+          Name: ${{env.ARCHIVE_NAME}}
+          Version: $BRANCH
+          Author: $GITHUB_ACTOR
+          Home-page: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/pull/$PRNUMBER
+          Download-URL: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+          Summary: $PACKAGES
+          Platform: ${{ matrix.arch }}
+
+          Packages for OpenWrt $BRANCH running on ${{ matrix.arch }}, built from PR $PRNUMBER on a macOS runner
+          at commit $HEAD_ID, against $BRANCH at commit $BASE_ID, with merge SHA $MERGE_ID.
+
+          Modified packages:
+          _EOF_
+          for p in $PACKAGES
+          do
+            echo "  "$p >> PKG-INFO
+          done
+          echo >> PKG-INFO
+          echo Full file listing: >> PKG-INFO
+          ls -al *.ipk >> PKG-INFO || true
+          ls -al *.apk >> PKG-INFO || true
+          cat PKG-INFO
+
+      - name: Store packages
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{env.ARCHIVE_NAME}}-packages
+          path: |
+            Packages
+            Packages.*
+            *.ipk
+            packages.adb
+            *.apk
+            PKG-INFO
+
+      - name: Store logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{env.ARCHIVE_NAME}}-logs
+          path: |
+            logs/
+            PKG-INFO
