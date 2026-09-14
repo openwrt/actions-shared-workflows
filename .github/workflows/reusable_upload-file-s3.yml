@@ -21,22 +21,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Install minio
-        run: |
-          curl --fail --silent --show-error --location https://dl.min.io/client/mc/release/linux-amd64/mc \
-            --create-dirs \
-            -o $GITHUB_WORKSPACE/minio-binaries/mc
-
-          chmod +x $GITHUB_WORKSPACE/minio-binaries/mc
-          echo $GITHUB_WORKSPACE/minio-binaries/ >> $GITHUB_PATH
-
-      - name: Setup minio
-        run: mc alias set s3 ${{ secrets.s3_endpoint }} ${{ secrets.s3_access_key }} ${{ secrets.s3_secret_key }}
-
       - name: Download file
         uses: actions/download-artifact@v8
         with:
           name: ${{ inputs.download_id }}
 
       - name: Upload file to s3
-        run: mc cp ${{ inputs.filename }} s3/${{ secrets.s3_bucket }}/
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.s3_access_key }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.s3_secret_key }}
+          AWS_DEFAULT_REGION: us-east-1
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          S3_ENDPOINT: ${{ secrets.s3_endpoint }}
+          S3_BUCKET: ${{ secrets.s3_bucket }}
+          FILENAME: ${{ inputs.filename }}
+        run: |
+          aws configure set default.s3.addressing_style path
+          aws s3 cp "$FILENAME" "s3://$S3_BUCKET/" --endpoint-url "$S3_ENDPOINT" --no-progress
