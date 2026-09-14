@@ -1,6 +1,19 @@
 ARG ARCH=x86-64
 FROM openwrt/rootfs:$ARCH
 
+# /proc/sys is read-only in the container, so installing a package that ships
+# /etc/sysctl.d/ files floods the log with errors when its postinst restarts
+# sysctl. The settings can't be applied here anyway, so make it a no-op.
+COPY --chmod=755 <<'EOF' /etc/init.d/sysctl
+#!/bin/sh /etc/rc.common
+
+START=11
+
+start() {
+	:
+}
+EOF
+
 ADD scripts/ci_helpers.sh /scripts/ci_helpers.sh
 ADD scripts/test_entrypoint.sh /scripts/test_entrypoint.sh
 
