@@ -18,6 +18,7 @@ RET=0
 REPO_PATH=${1:+-C "$1"}
 # shellcheck disable=SC2206
 REPO_PATH=($REPO_PATH)
+REPO_DIR="${1:-.}"
 
 if [ -f 'workflow_context/.github/scripts/ci_helpers.sh' ]; then
 	source workflow_context/.github/scripts/ci_helpers.sh
@@ -28,6 +29,7 @@ fi
 # Use these global vars to improve header creation readability
 COMMIT=""
 HEADER_SET=0
+RELEASE_HEADER_SET=0
 
 output() {
 	[ -f "$GITHUB_OUTPUT" ] || return
@@ -63,6 +65,28 @@ output_fail_raw() {
 
 output_fail() {
 	output_header
+	output "- $EMOJI_FAIL $1"
+	status_fail "$1"
+}
+
+# The package release check is PR-wide rather than per-commit, so it gets its
+# own summary section instead of reusing the per-commit header.
+output_release_header() {
+	[ "$RELEASE_HEADER_SET" = 0 ] || return
+
+	[ -f "$GITHUB_OUTPUT" ] || return
+
+	cat >> "$GITHUB_OUTPUT" <<-HEADER
+
+	### Package release bumps
+
+	HEADER
+
+	RELEASE_HEADER_SET=1
+}
+
+output_release_fail() {
+	output_release_header
 	output "- $EMOJI_FAIL $1"
 	status_fail "$1"
 }
@@ -251,6 +275,75 @@ check_body() {
 	fi
 }
 
+# Resolve the package root (nearest ancestor directory whose Makefile defines
+# PKG_NAME) for a given changed path, relative to the repository root.
+find_pkg_root() {
+	local dir
+	dir="$(dirname "$1")"
+	while [ "$dir" != "." ] && [ "$dir" != "/" ]; do
+		[ "$dir" != "package" ] || break
+		if [ -f "$REPO_DIR/$dir/Makefile" ] && grep -q '^PKG_NAME[[:space:]]*:*=' "$REPO_DIR/$dir/Makefile"; then
+			echo "$dir"
+			return 0
+		fi
+		dir="$(dirname "$dir")"
+	done
+	return 1
+}
+
+# Check that every package whose content changed in the PR also bumps its
+# PKG_RELEASE (or version). This is a PR-wide check on the net diff rather than
+# a per-commit one, so it runs once after the commit loop.
+check_releases() {
+	local range="origin/$BRANCH...HEAD"
+	local changed_files pkg_roots="" file root makefile mk_diff
+
+	echo
+	info '=== Checking package release bumps'
+
+	changed_files="$(git "${REPO_PATH[@]}" diff --name-only "$range" -- 'package/***' || true)"
+	if [ -z "$changed_files" ]; then
+		status_pass 'No package content changed'
+		return
+	fi
+
+	while IFS= read -r file; do
+		[ -n "$file" ] || continue
+		if root="$(find_pkg_root "$file")"; then
+			case " $pkg_roots " in
+			*" $root "*) ;;
+			*) pkg_roots="$pkg_roots $root" ;;
+			esac
+		fi
+	done <<-EOF
+		$changed_files
+	EOF
+
+	for root in $pkg_roots; do
+		makefile="$root/Makefile"
+		PKG_NAME="$root"
+
+		# Packages using AUTORELEASE get their release bumped automatically from
+		# the git history, so they are exempt.
+		if grep -q 'AUTORELEASE' "$REPO_DIR/$makefile" 2>/dev/null; then
+			status_skip 'uses AUTORELEASE'
+			continue
+		fi
+
+		# A change to any version-defining variable satisfies the check. For
+		# git-sourced packages PKG_SOURCE_VERSION/PKG_SOURCE_DATE imply a new
+		# version (and a PKG_RELEASE reset).
+		mk_diff="$(git "${REPO_PATH[@]}" diff "$range" -- "$makefile" || true)"
+		if echo "$mk_diff" | grep -Eq '^[-+]PKG_(RELEASE|VERSION|SOURCE_VERSION|SOURCE_DATE)[[:space:]]*:*='; then
+			status_pass 'PKG_RELEASE bumped'
+		else
+			output_release_fail "Package \`$root\` content changed without a PKG_RELEASE bump"
+			RET=1
+		fi
+	done
+	unset PKG_NAME
+}
+
 main() {
 	local author_email
 	local author_name
@@ -322,6 +415,8 @@ main() {
 		info "=== Done checking commit '$commit'"
 		echo
 	done
+
+	check_releases
 
 	output 'EOF'
 
