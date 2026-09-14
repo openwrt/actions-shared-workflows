@@ -77,6 +77,23 @@ code_span() {
 	printf '%s %s %s' "$fence" "$1" "$fence"
 }
 
+random_token() {
+	head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n'
+}
+
+stop_commands() {
+	[ "$GITHUB_ACTIONS" = true ] || return
+
+	STOP_TOKEN="$(random_token)"
+	echo "::stop-commands::$STOP_TOKEN"
+}
+
+resume_commands() {
+	[ -n "$STOP_TOKEN" ] || return
+
+	echo "::$STOP_TOKEN::"
+}
+
 is_stable_branch() {
 	[ "$1" != "main" ] && [ "$1" != "master" ]
 }
@@ -274,6 +291,8 @@ main() {
 	# Initialize GitHub actions output
 	output 'content<<EOF'
 
+	stop_commands
+
 	cat <<-EOF
 	Something broken? Consider providing feedback:
 	https://github.com/openwrt/actions-shared-workflows/issues
@@ -332,6 +351,8 @@ main() {
 		info "=== Done checking commit '$commit'"
 		echo
 	done
+
+	resume_commands
 
 	output 'EOF'
 
