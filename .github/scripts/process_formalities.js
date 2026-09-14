@@ -1,7 +1,7 @@
 'use strict'
 
 const BOT_LOGIN = "github-actions";
-const STEP_ANCHOR = "step:4:1";
+const STEP_ANCHOR = "step:5:1";
 
 const GET_COMMENTS_QUERY = `query($owner: String!, $repo: String!, $issueNumber: Int!) {
   repository(owner: $owner, name: $repo) {

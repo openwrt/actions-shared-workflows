@@ -33,8 +33,13 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.base.sha }}
           fetch-depth: 0
+
+      - name: Fetch pull request commits
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: git fetch --no-tags origin "$HEAD_SHA"
 
       - name: Checkout formalities
         uses: actions/checkout@v7
@@ -52,6 +57,8 @@ jobs:
         run: workflow_context/.github/scripts/check_formalities.sh
         env:
           BRANCH: ${{ github.base_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           EXCLUDE_DEPENDABOT: ${{ inputs.exclude_dependabot }}
           EXCLUDE_WEBLATE: ${{ inputs.exclude_weblate }}
 
