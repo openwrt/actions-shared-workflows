@@ -77,5 +77,5 @@ jobs:
               context,
               jobId: process.env.JOB_ID,
               summary: process.env.SUMMARY,
-              warnOnNoModify: process.env.WARN_ON_NO_MODIFY,
+              warnOnNoModify: process.env.WARN_ON_NO_MODIFY === 'true',
             });
