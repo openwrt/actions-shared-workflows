@@ -254,9 +254,11 @@ check_body() {
 main() {
 	local author_email
 	local author_name
+	local base_sha
 	local body
 	local commit
 	local committer_name
+	local head_sha
 	local subject
 
 	# Initialize GitHub actions output
@@ -281,7 +283,10 @@ main() {
 	fi
 	echo
 
-	for commit in $(git "${REPO_PATH[@]}" rev-list HEAD ^origin/"$BRANCH"); do
+	head_sha="${HEAD_SHA:-HEAD}"
+	base_sha="${BASE_SHA:-origin/$BRANCH}"
+
+	for commit in $(git "${REPO_PATH[@]}" rev-list "$head_sha" "^$base_sha"); do
 		HEADER_SET=0
 		COMMIT="$commit"
 
