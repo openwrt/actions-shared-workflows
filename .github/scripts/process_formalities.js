@@ -112,7 +112,7 @@ async function processFormalities({
   await hideOldSummaries({ github, owner, repo, issueNumber });
 
   // Explicitly check maintainer_can_modify as it might not be set at all
-  const { pull_request: pr } = context.payload.pull_request;
+  const pr = context.payload.pull_request;
   const noModify = warnOnNoModify && pr?.maintainer_can_modify === false;
   summary = summary.trim();
   if (summary.length === 0 && !noModify) {

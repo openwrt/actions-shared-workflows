@@ -67,6 +67,33 @@ output_fail() {
 	status_fail "$1"
 }
 
+code_span() {
+	local fence='`'
+
+	while [[ "$1" == *"$fence"* ]]; do
+		fence="$fence\`"
+	done
+
+	printf '%s %s %s' "$fence" "$1" "$fence"
+}
+
+random_token() {
+	head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n'
+}
+
+stop_commands() {
+	[ "$GITHUB_ACTIONS" = true ] || return
+
+	STOP_TOKEN="$(random_token)"
+	echo "::stop-commands::$STOP_TOKEN"
+}
+
+resume_commands() {
+	[ -n "$STOP_TOKEN" ] || return
+
+	echo "::$STOP_TOKEN::"
+}
+
 is_stable_branch() {
 	[ "$1" != "main" ] && [ "$1" != "master" ]
 }
@@ -102,9 +129,9 @@ check_name() {
 		status_pass "$type name ($name) seems OK"
 	# Pattern \S\+ matches single names, typical of nicknames or handles
 	elif echo "$name" | grep -q '\S\+'; then
-		output_warn "$type name ($name) seems to be a nickname or an alias"
+		output_warn "$type name $(code_span "$name") seems to be a nickname or an alias"
 	else
-		output_fail "$type name ($name) must be one of:"
+		output_fail "$type name $(code_span "$name") must be one of:"
 		output_fail_raw "    - real name 'firstname lastname'"
 		output_fail_raw '    - nickname/alias/handle'
 		RET=1
@@ -195,7 +222,7 @@ check_body() {
 			line_num=$((line_num + 1))
 			if [ ${#line} -gt "$MAX_BODY_LINE_LEN" ]; then
 				output_warn "Commit body line $line_num is longer than $MAX_BODY_LINE_LEN characters (is ${#line}):"
-				output "    $line"
+				output "    $(code_span "$line")"
 				split_fail "$MAX_BODY_LINE_LEN" "$line"
 				body_line_too_long=1
 			fi
@@ -222,7 +249,7 @@ check_body() {
 		status_warn '`Signed-off-by` exception: authored by Weblate'
 
 	else
-		output_fail "\`Signed-off-by\` is missing or doesn't match author (should be \`$sob\`)"
+		output_fail "\`Signed-off-by\` is missing or doesn't match author (should be $(code_span "$sob"))"
 		RET=1
 	fi
 
@@ -259,10 +286,14 @@ main() {
 	local commit
 	local committer_name
 	local head_sha
+	local output_delimiter
 	local subject
 
 	# Initialize GitHub actions output
-	output 'content<<EOF'
+	output_delimiter="EOF_$(random_token)"
+	output "content<<$output_delimiter"
+
+	stop_commands
 
 	cat <<-EOF
 	Something broken? Consider providing feedback:
@@ -323,7 +354,9 @@ main() {
 		echo
 	done
 
-	output 'EOF'
+	resume_commands
+
+	output "$output_delimiter"
 
 	exit $RET
 }
