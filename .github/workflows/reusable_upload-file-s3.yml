@@ -19,9 +19,15 @@ jobs:
   upload-file-in-s3:
     name: Upload file in S3
     runs-on: ubuntu-latest
+    env:
+      S3_ENDPOINT: ${{ secrets.s3_endpoint }}
+      S3_ACCESS_KEY: ${{ secrets.s3_access_key }}
+      S3_SECRET_KEY: ${{ secrets.s3_secret_key }}
+      S3_BUCKET: ${{ secrets.s3_bucket }}
 
     steps:
       - name: Install minio
+        if: env.S3_ENDPOINT != '' && env.S3_ACCESS_KEY != '' && env.S3_SECRET_KEY != '' && env.S3_BUCKET != ''
         run: |
           curl --fail --silent --show-error --location https://dl.min.io/client/mc/release/linux-amd64/mc \
             --create-dirs \
@@ -31,12 +37,15 @@ jobs:
           echo $GITHUB_WORKSPACE/minio-binaries/ >> $GITHUB_PATH
 
       - name: Setup minio
+        if: env.S3_ENDPOINT != '' && env.S3_ACCESS_KEY != '' && env.S3_SECRET_KEY != '' && env.S3_BUCKET != ''
         run: mc alias set s3 ${{ secrets.s3_endpoint }} ${{ secrets.s3_access_key }} ${{ secrets.s3_secret_key }}
 
       - name: Download file
+        if: env.S3_ENDPOINT != '' && env.S3_ACCESS_KEY != '' && env.S3_SECRET_KEY != '' && env.S3_BUCKET != ''
         uses: actions/download-artifact@v8
         with:
           name: ${{ inputs.download_id }}
 
       - name: Upload file to s3
+        if: env.S3_ENDPOINT != '' && env.S3_ACCESS_KEY != '' && env.S3_SECRET_KEY != '' && env.S3_BUCKET != ''
         run: mc cp ${{ inputs.filename }} s3/${{ secrets.s3_bucket }}/
