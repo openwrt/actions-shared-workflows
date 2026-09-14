@@ -286,10 +286,12 @@ main() {
 	local commit
 	local committer_name
 	local head_sha
+	local output_delimiter
 	local subject
 
 	# Initialize GitHub actions output
-	output 'content<<EOF'
+	output_delimiter="EOF_$(random_token)"
+	output "content<<$output_delimiter"
 
 	stop_commands
 
@@ -354,7 +356,7 @@ main() {
 
 	resume_commands
 
-	output 'EOF'
+	output "$output_delimiter"
 
 	exit $RET
 }
