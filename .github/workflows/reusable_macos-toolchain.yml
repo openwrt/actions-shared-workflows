@@ -1,0 +1,371 @@
+name: Build macOS toolchain
+
+on:
+  workflow_call:
+    inputs:
+      branch:
+        description: OpenWrt branch whose snapshot to build (master or openwrt-X.Y)
+        type: string
+        default: master
+      sdk_url:
+        description: Base URL serving the published archives (public read)
+        type: string
+        default: https://s3-ccache.openwrt-ci.ansuel.com
+      force:
+        description: Rebuild even if the snapshot is already published
+        type: boolean
+        default: false
+    secrets:
+      s3_endpoint:
+      s3_bucket:
+      s3_access_key:
+      s3_secret_key:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.arch }} SDK parts
+    # the consumer runs the host tools built here, so it uses the same image
+    runs-on: macos-26
+    concurrency:
+      group: macos-toolchain-${{ inputs.branch }}-${{ matrix.arch }}
+      cancel-in-progress: false
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      # the default matrix of feeds-package-test-build-macos.yml
+      matrix:
+        include:
+          - arch: aarch64_generic
+            target: armsr-armv8
+          - arch: arm_cortex-a9_vfpv3-d16
+            target: mvebu-cortexa9
+
+    env:
+      BRANCH: ${{ inputs.branch }}
+      ARCH: ${{ matrix.arch }}
+      TARGET: ${{ matrix.target }}
+      BUILD_DIR: /Volumes/OpenWrt/build
+      MANIFEST: macos-sdk-${{ inputs.branch }}-${{ matrix.arch }}.json
+      LLVM_FORMULA: llvm@20
+
+    steps:
+      - name: Check S3 credentials
+        env:
+          HAVE_CREDENTIALS: ${{ secrets.s3_endpoint != '' && secrets.s3_bucket != '' && secrets.s3_access_key != '' && secrets.s3_secret_key != '' }}
+        run: |
+          if [ "$HAVE_CREDENTIALS" != true ]; then
+            echo "::error::The S3 secrets are not set, see docs/macos-feeds-build.md"
+            exit 1
+          fi
+
+      - name: Checkout OpenWrt keyring
+        uses: actions/checkout@v7
+        with:
+          repository: openwrt/keyring
+          path: keyring
+          persist-credentials: false
+          sparse-checkout: |
+            gpg/CD54E82DADB3684D.asc
+            gpg/0x1D53D1877742E911.asc
+            gpg/626471F1.asc
+          sparse-checkout-cone-mode: false
+
+      - name: Import GPG keys
+        run: gpg --import keyring/gpg/CD54E82DADB3684D.asc keyring/gpg/0x1D53D1877742E911.asc keyring/gpg/626471F1.asc
+
+      - name: Resolve snapshot
+        id: snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SDK_URL: ${{ inputs.sdk_url }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          case "$BRANCH" in
+            main|master)
+              VERSION_PATH=snapshots
+              ;;
+            openwrt-[0-9]*\.[0-9]*)
+              VERSION_PATH="releases/${BRANCH#openwrt-}-SNAPSHOT"
+              ;;
+            *)
+              echo "::error::Unsupported branch '$BRANCH' (expected main, master or openwrt-X.Y)"
+              exit 1
+              ;;
+          esac
+          SNAPSHOT_URL="https://downloads.openwrt.org/$VERSION_PATH/targets/${TARGET/-//}"
+          mkdir -p "$RUNNER_TEMP/snapshot"
+          cd "$RUNNER_TEMP/snapshot"
+          for file in sha256sums sha256sums.asc version.buildinfo config.buildinfo profiles.json; do
+            curl -fsSL --retry 3 --retry-all-errors "$SNAPSHOT_URL/$file" -o "$file"
+          done
+          gpg --with-fingerprint --verify sha256sums.asc sha256sums
+          grep -E ' \*?(version\.buildinfo|config\.buildinfo|profiles\.json)$' sha256sums | shasum -a 256 -c -
+          read -r SDK_SHA256 SDK_FILE < <(grep -E ' \*?openwrt-sdk-.*\.Linux-x86_64\.tar\.(zst|xz)$' sha256sums) ||
+            { echo "::error::sha256sums lists no SDK"; exit 1; }
+
+          REVISION=$(cat version.buildinfo)
+          COMMIT=$(gh api "repos/openwrt/openwrt/commits/${REVISION##*-}" --jq .sha)
+          {
+            echo "SNAPSHOT_URL=$SNAPSHOT_URL"
+            echo "REVISION=$REVISION"
+            echo "COMMIT=$COMMIT"
+            echo "SNAPSHOT_VERMAGIC=$(jq -r '.linux_kernel.vermagic // empty' profiles.json)"
+            echo "SDK_FILE=${SDK_FILE#\*}"
+            echo "SDK_SHA256=$SDK_SHA256"
+            echo "SDK_ARCHIVE=macos-sdk-$BRANCH-$ARCH-$REVISION.tar.zst"
+            echo "KERNEL_ARCHIVE=macos-kernel-$BRANCH-$ARCH-$REVISION.tar.zst"
+          } >> "$GITHUB_ENV"
+
+          if [ "$FORCE" != true ] && [ "$(curl -fsL "${SDK_URL%/}/$MANIFEST" | jq -r 'select(.sdk) | .revision' 2>/dev/null)" = "$REVISION" ]; then
+            echo "Snapshot $REVISION is already published"
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            # now, before a newer snapshot replaces the SDK under the same name
+            curl -fsSL --retry 3 --retry-all-errors "$SNAPSHOT_URL/${SDK_FILE#\*}" -o "$RUNNER_TEMP/${SDK_FILE#\*}"
+            echo "$SDK_SHA256  $RUNNER_TEMP/${SDK_FILE#\*}" | shasum -a 256 -c -
+          fi
+
+      - name: Set up case-sensitive build volume
+        if: steps.snapshot.outputs.published != 'true'
+        run: |
+          hdiutil create -size 40g -type SPARSE -fs "Case-sensitive APFS" -volname OpenWrt "$RUNNER_TEMP/OpenWrt.sparseimage"
+          hdiutil attach "$RUNNER_TEMP/OpenWrt.sparseimage"
+
+      - name: Install build dependencies
+        if: steps.snapshot.outputs.published != 'true'
+        run: |
+          for tap in $(brew tap | grep -v '^homebrew/'); do
+            brew untap --force "$tap" || echo "::warning::failed to untap $tap"
+          done
+          brew install \
+            automake \
+            bash \
+            coreutils \
+            diffutils \
+            findutils \
+            gawk \
+            git-extras \
+            gnu-getopt \
+            gnu-sed \
+            gpatch \
+            grep \
+            gzip \
+            make \
+            ncurses \
+            pkg-config \
+            python-setuptools \
+            quilt \
+            swig \
+            wget
+
+          # fakeroot cannot preload into the arm64e system binaries, so ipkg-build
+          # has to find the Homebrew coreutils and gzip first
+          BREW_PREFIX="$(brew --prefix)"
+          for dir in \
+            "$BREW_PREFIX/bin" \
+            "$BREW_PREFIX/opt/coreutils/bin" \
+            "$BREW_PREFIX/opt/coreutils/libexec/gnubin" \
+            "$BREW_PREFIX/opt/findutils/libexec/gnubin" \
+            "$BREW_PREFIX/opt/gnu-getopt/bin" \
+            "$BREW_PREFIX/opt/gnu-sed/bin" \
+            "$BREW_PREFIX/opt/make/libexec/gnubin" \
+            "$BREW_PREFIX/opt/ncurses/bin" \
+            "$BREW_PREFIX/opt/gawk/libexec/gnubin"; do
+            echo "$dir" >> "$GITHUB_PATH"
+          done
+          echo "PKG_CONFIG_PATH=$BREW_PREFIX/opt/ncurses/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
+
+      - name: Checkout OpenWrt
+        if: steps.snapshot.outputs.published != 'true'
+        run: |
+          git init -q "$BUILD_DIR"
+          git -C "$BUILD_DIR" remote add origin https://github.com/openwrt/openwrt.git
+          git -C "$BUILD_DIR" fetch -q --depth 1 origin "$COMMIT"
+          git -C "$BUILD_DIR" checkout -q FETCH_HEAD
+
+      - name: Configure target
+        if: steps.snapshot.outputs.published != 'true'
+        working-directory: ${{ env.BUILD_DIR }}
+        run: |
+          # The snapshot's configuration, with the SDK's package signing and the
+          # runner's LLVM for BPF. Without CONFIG_BUILDBOT, which lets
+          # toolchain/Makefile delete a restored staging_dir.
+          {
+            grep -vE '^(# )?CONFIG_(BUILDBOT|SDK_LLVM_BPF|SIGN_EACH_PACKAGE)[= ]' "$RUNNER_TEMP/snapshot/config.buildinfo"
+            echo "CONFIG_SIGN_EACH_PACKAGE=y"
+            echo "CONFIG_BPF_TOOLCHAIN_HOST=y"
+            echo "CONFIG_BPF_TOOLCHAIN_HOST_PATH=\"$(brew --prefix "$LLVM_FORMULA")\""
+          } > "$RUNNER_TEMP/macos.config"
+          cp "$RUNNER_TEMP/macos.config" .config
+          # the configuration the consumer builds with, which enables every package
+          echo "CONFIG_ALL=y" >> .config
+          make defconfig
+
+          grep -qx 'CONFIG_USE_LLVM_HOST=y' .config || { echo "::error::BPF packages would not use the runner's LLVM"; exit 1; }
+          grep -qx 'CONFIG_AUTOREMOVE=y' .config || { echo "::error::CONFIG_AUTOREMOVE is not set"; exit 1; }
+
+      - name: Build tools
+        if: steps.snapshot.outputs.published != 'true'
+        working-directory: ${{ env.BUILD_DIR }}
+        run: make tools/install -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+      - name: Build toolchain
+        if: steps.snapshot.outputs.published != 'true'
+        working-directory: ${{ env.BUILD_DIR }}
+        run: make toolchain/install -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+      - name: Build apk host tools
+        if: steps.snapshot.outputs.published != 'true'
+        working-directory: ${{ env.BUILD_DIR }}
+        run: |
+          grep -qx 'CONFIG_USE_APK=y' .config || exit 0
+          touch "$RUNNER_TEMP/hostpkg.start"
+          make package/system/apk/host/compile -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+      - name: Archive SDK parts
+        if: steps.snapshot.outputs.published != 'true'
+        working-directory: ${{ env.BUILD_DIR }}
+        run: |
+          {
+            printf '%s\n' staging_dir/host staging_dir/toolchain-* staging_dir/target-*
+            if [ -e "$RUNNER_TEMP/hostpkg.start" ]; then
+              # With CONFIG_AUTOREMOVE build_dir/hostpkg only keeps the build
+              # stamps. The source archives in dl keep them from being rebuilt.
+              printf '%s\n' staging_dir/hostpkg build_dir/hostpkg
+              find dl -type f -cnewer "$RUNNER_TEMP/hostpkg.start"
+            fi
+          } | tar -cf - -T - | zstd -T0 -3 -q -o "$RUNNER_TEMP/$SDK_ARCHIVE"
+
+      - name: Assemble kernel from the snapshot SDK
+        id: kernel
+        if: steps.snapshot.outputs.published != 'true'
+        continue-on-error: true
+        timeout-minutes: 60
+        working-directory: ${{ env.BUILD_DIR }}
+        run: |
+          BOARD="${TARGET%%-*}"
+          LINUX_DIR=$(make -s -C "target/linux/$BOARD" TOPDIR="$BUILD_DIR" val.LINUX_DIR)
+          LINUX_DIR="${LINUX_DIR#"$BUILD_DIR"/}"
+          make target/linux/prepare -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+          # Kernel modules are built against the configuration, symbol
+          # versions and modules of the snapshot SDK's kernel.
+          case "$SDK_FILE" in
+            *.zst) DECOMPRESS="zstd -dc -T0" ;;
+            *) DECOMPRESS="xz -dc" ;;
+          esac
+          SDK_ROOT="${SDK_FILE%.tar.*}"
+          # case-sensitive, some modules differ only in case, like xt_DSCP.ko and xt_dscp.ko
+          SDK_DIR="${BUILD_DIR%/*}/sdk"
+          mkdir -p "$SDK_DIR"
+          $DECOMPRESS "$RUNNER_TEMP/$SDK_FILE" | tar -C "$SDK_DIR" -xf - "$SDK_ROOT/$LINUX_DIR" "$SDK_ROOT/include/kernel.mk"
+          rm -f "$RUNNER_TEMP/$SDK_FILE"
+          SDK_LINUX_DIR="$SDK_DIR/$SDK_ROOT/$LINUX_DIR"
+          if [ ! -f "$SDK_LINUX_DIR/.config" ]; then
+            echo "::error::The SDK has no kernel in $LINUX_DIR"
+            exit 1
+          fi
+
+          VERMAGIC=$(grep 'LINUX_VERMAGIC:=' "$SDK_DIR/$SDK_ROOT/include/kernel.mk" | grep -oE '[0-9a-f]{32}' | head -n1 || true)
+          if [ -z "$VERMAGIC" ] || [ "$VERMAGIC" != "$SNAPSHOT_VERMAGIC" ]; then
+            echo "::error::SDK kernel vermagic '$VERMAGIC' does not match the snapshot's '$SNAPSHOT_VERMAGIC'"
+            exit 1
+          fi
+          echo "$VERMAGIC" > "$LINUX_DIR/.vermagic"
+
+          # kbuild host programs and generated headers, built for macOS
+          cp "$SDK_LINUX_DIR/.config" "$LINUX_DIR/.config"
+          printf 'sdk-kernel-prepare: FORCE\n\t+$(KERNEL_MAKE) olddefconfig\n\t+$(KERNEL_MAKE) modules_prepare\n' > "$RUNNER_TEMP/kernel-prepare.mk"
+          env PATH="$BUILD_DIR/staging_dir/host/bin:$PATH" \
+            make -C "target/linux/$BOARD" -f Makefile -f "$RUNNER_TEMP/kernel-prepare.mk" TOPDIR="$BUILD_DIR" sdk-kernel-prepare
+
+          # only the host and compiler identification may change
+          IGNORE='^CONFIG_(CC_VERSION_TEXT|RUSTC_|RUST_IS_AVAILABLE|BINDGEN_VERSION_TEXT|PAHOLE_VERSION)'
+          if ! diff <(grep -vE "$IGNORE" "$SDK_LINUX_DIR/include/config/auto.conf" | sort) \
+                    <(grep -vE "$IGNORE" "$LINUX_DIR/include/config/auto.conf" | sort); then
+            echo "::error::The kernel configuration changed when prepared on macOS (see the diff above)"
+            exit 1
+          fi
+
+          (cd "$SDK_LINUX_DIR" && find . \( -name '*.ko' -o -name Module.symvers -o -name modules.builtin \) -print \
+            | tar -cf - -T -) | tar -C "$LINUX_DIR" -xf -
+          rm -rf "$SDK_DIR"
+
+          # the kernel files of the SDK, plus .vermagic
+          FILES=$(make -s -C target/sdk TOPDIR="$BUILD_DIR" val.KERNEL_FILES val.USERSPACE_FILES)
+          {
+            printf '%s\n' "$LINUX_DIR/.vermagic" $FILES
+            find "$LINUX_DIR" -name '*.ko'
+          } | tar -cf - -T - | zstd -T0 -3 -q -o "$RUNNER_TEMP/$KERNEL_ARCHIVE"
+
+      - name: Upload logs
+        if: always() && steps.snapshot.outputs.published != 'true'
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-toolchain-${{ inputs.branch }}-${{ matrix.arch }}-logs
+          path: ${{ env.BUILD_DIR }}/logs
+          if-no-files-found: ignore
+
+      # the only step that gets the S3 credentials
+      - name: Publish SDK parts
+        if: steps.snapshot.outputs.published != 'true'
+        env:
+          S3_ENDPOINT: ${{ secrets.s3_endpoint }}
+          S3_BUCKET: ${{ secrets.s3_bucket }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.s3_access_key }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.s3_secret_key }}
+          AWS_DEFAULT_REGION: auto
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          SDK_URL: ${{ inputs.sdk_url }}
+          KERNEL_OUTCOME: ${{ steps.kernel.outcome }}
+        run: |
+          # the S3 API wants the bare endpoint, without a bucket or path
+          S3_ENDPOINT=$(echo "$S3_ENDPOINT" | sed -E 's|^([^/]+//[^/]+).*|\1|')
+          echo "::add-mask::$S3_ENDPOINT"
+          # AWS CLI 2.36 does nothing and exits 0 when a secret ends in a newline
+          S3_BUCKET="${S3_BUCKET//[[:space:]]/}"
+          AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID//[[:space:]]/}"
+          AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY//[[:space:]]/}"
+          # aws s3 cp can exit 0 without uploading, so head-object checks every upload
+          upload() {
+            echo "Uploading $2"
+            aws s3 cp --only-show-errors --no-progress --endpoint-url "$S3_ENDPOINT" "${@:3}" "$1" "s3://$S3_BUCKET/$2"
+            SIZE=$(aws s3api head-object --endpoint-url "$S3_ENDPOINT" --bucket "$S3_BUCKET" --key "$2" \
+              --query ContentLength --output text)
+            if [ "$SIZE" != "$(wc -c < "$1" | tr -d ' ')" ]; then
+              echo "::error::$2 was not uploaded completely"
+              exit 1
+            fi
+          }
+
+          KERNEL="$KERNEL_ARCHIVE"
+          if [ "$KERNEL_OUTCOME" != success ]; then
+            echo "::warning::The kernel could not be assembled for $REVISION, packages that need it are skipped"
+            KERNEL=""
+          fi
+          for archive in "$SDK_ARCHIVE" $KERNEL; do
+            upload "$RUNNER_TEMP/$archive" "$archive"
+            if ! curl -fsIL --retry 3 --retry-all-errors "${SDK_URL%/}/$archive" > /dev/null; then
+              echo "::error::$archive cannot be read at $SDK_URL, which must serve the bucket"
+              exit 1
+            fi
+          done
+
+          # the manifest last, so consumers never see it before its archives
+          jq -n \
+            --arg revision "$REVISION" \
+            --arg openwrt_commit "$COMMIT" \
+            --arg image_version "$ImageVersion" \
+            --arg llvm_formula "$LLVM_FORMULA" \
+            --arg sdk "$SDK_ARCHIVE" \
+            --arg kernel "$KERNEL" \
+            --arg config "$(cat "$RUNNER_TEMP/macos.config")" \
+            '$ARGS.named' > "$RUNNER_TEMP/$MANIFEST"
+          upload "$RUNNER_TEMP/$MANIFEST" "$MANIFEST" --content-type application/json --cache-control no-cache

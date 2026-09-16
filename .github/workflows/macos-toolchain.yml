@@ -1,0 +1,42 @@
+name: Publish macOS toolchain
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: OpenWrt branch to build (empty = every scheduled branch)
+        required: false
+        default: master
+        type: string
+      force:
+        description: Rebuild even if the snapshot is already published
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  build:
+    name: ${{ matrix.branch }}
+    if: github.event_name == 'workflow_dispatch' || github.repository_owner == 'openwrt'
+    strategy:
+      fail-fast: false
+      # leave macOS runners free for feed pull requests
+      max-parallel: 1
+      matrix:
+        branch: >-
+          ${{
+            inputs.branch != '' && fromJSON(format('["{0}"]', inputs.branch)) ||
+            fromJSON('["master", "openwrt-25.12"]')
+          }}
+    uses: ./.github/workflows/reusable_macos-toolchain.yml
+    with:
+      branch: ${{ matrix.branch }}
+      sdk_url: ${{ vars.MACOS_SDK_URL || 'https://s3-ccache.openwrt-ci.ansuel.com' }}
+      force: ${{ inputs.force || false }}
+    secrets:
+      s3_endpoint: ${{ secrets.CCACHE_S3_ENDPOINT }}
+      s3_bucket: ${{ secrets.CCACHE_S3_BUCKET }}
+      s3_access_key: ${{ secrets.CCACHE_S3_ACCESS_KEY }}
+      s3_secret_key: ${{ secrets.CCACHE_S3_SECRET_KEY }}
