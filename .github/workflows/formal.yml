@@ -63,7 +63,7 @@ jobs:
           EXCLUDE_WEBLATE: ${{ inputs.exclude_weblate }}
 
       - name: Process GitHub formality check results
-        if: always() && inputs.post_comment == true
+        if: ${{ !cancelled() && inputs.post_comment == true && steps.formalities.outcome != 'skipped' }}
         uses: actions/github-script@v9
         env:
           JOB_ID: ${{ job.check_run_id }}
@@ -77,5 +77,5 @@ jobs:
               context,
               jobId: process.env.JOB_ID,
               summary: process.env.SUMMARY,
-              warnOnNoModify: process.env.WARN_ON_NO_MODIFY,
+              warnOnNoModify: process.env.WARN_ON_NO_MODIFY === 'true',
             });
