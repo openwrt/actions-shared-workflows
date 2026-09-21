@@ -3,5 +3,6 @@ FROM openwrt/rootfs:$ARCH
 
 ADD scripts/ci_helpers.sh /scripts/ci_helpers.sh
 ADD scripts/test_entrypoint.sh /scripts/test_entrypoint.sh
+ADD scripts/sysctl.init /etc/init.d/sysctl
 
 CMD ["/scripts/test_entrypoint.sh"]
