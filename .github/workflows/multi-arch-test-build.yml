@@ -216,6 +216,7 @@ jobs:
             .github/scripts/ci_helpers.sh
             .github/dockerfiles/Dockerfile.feeds
             .github/scripts/test_entrypoint.sh
+            .github/scripts/sysctl.init
           sparse-checkout-cone-mode: false
 
       - name: Build Docker container

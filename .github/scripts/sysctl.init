@@ -1,0 +1,11 @@
+#!/bin/sh /etc/rc.common
+# /proc/sys is read-only in the feeds test container, so installing a package
+# that ships /etc/sysctl.d/ files floods the log with errors when its postinst
+# restarts sysctl. The settings can't be applied there anyway, so this replaces
+# /etc/init.d/sysctl in the container with a no-op.
+
+START=11
+
+start() {
+	:
+}
