@@ -557,7 +557,7 @@ jobs:
           touch $CCACHE_CONFIGPATH2
 
           echo compiler_type=gcc >> $CCACHE_CONFIGPATH2
-          [ ${{ inputs.ccache_type }} = 'kernel' ] && echo max_size=1G >> $CCACHE_CONFIGPATH2
+          [ ${{ inputs.ccache_type }} = 'kernel' ] && echo max_size=2G >> $CCACHE_CONFIGPATH2
           [ ${{ inputs.ccache_type }} = 'packages' ] && echo max_size=8G >> $CCACHE_CONFIGPATH2
 
           echo depend_mode=true >> $CCACHE_CONFIGPATH2
