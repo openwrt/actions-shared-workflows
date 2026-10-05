@@ -665,8 +665,10 @@ jobs:
         run: |
           REV=HEAD
           TOOLCHAIN_NAME=in-tree
-          if [ "${{ inputs.build_toolchain }}" != "true" ] && [ -d /external-toolchain ]; then
-            GCC=$(find /external-toolchain -name '*-openwrt-linux-*-gcc' \( -type f -o -type l \) 2>/dev/null | head -n1)
+          # The toolchain of the container, or the downloaded toolchain or SDK
+          TOOLCHAIN_DIRS=$(ls -d /external-toolchain "${{ env.TOOLCHAIN_NAME }}" 2>/dev/null || true)
+          if [ "${{ inputs.build_toolchain }}" != "true" ] && [ -n "$TOOLCHAIN_DIRS" ]; then
+            GCC=$(find $TOOLCHAIN_DIRS -name '*-openwrt-linux-*-gcc' \( -type f -o -type l \) 2>/dev/null | head -n1)
             if [ -n "$GCC" ]; then
               TOOLCHAIN_REV=$("$GCC" --version | head -n1 | grep -oE 'r[0-9]+-[0-9a-f]+' | sed 's/^r[0-9]*-//')
               git cat-file -e "$TOOLCHAIN_REV" 2>/dev/null && REV=$TOOLCHAIN_REV
