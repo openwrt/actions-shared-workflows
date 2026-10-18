@@ -557,7 +557,7 @@ jobs:
           touch $CCACHE_CONFIGPATH2
 
           echo compiler_type=gcc >> $CCACHE_CONFIGPATH2
-          [ ${{ inputs.ccache_type }} = 'kernel' ] && echo max_size=1G >> $CCACHE_CONFIGPATH2
+          [ ${{ inputs.ccache_type }} = 'kernel' ] && echo max_size=2G >> $CCACHE_CONFIGPATH2
           [ ${{ inputs.ccache_type }} = 'packages' ] && echo max_size=8G >> $CCACHE_CONFIGPATH2
 
           echo depend_mode=true >> $CCACHE_CONFIGPATH2
@@ -665,8 +665,10 @@ jobs:
         run: |
           REV=HEAD
           TOOLCHAIN_NAME=in-tree
-          if [ "${{ inputs.build_toolchain }}" != "true" ] && [ -d /external-toolchain ]; then
-            GCC=$(find /external-toolchain -name '*-openwrt-linux-*-gcc' \( -type f -o -type l \) 2>/dev/null | head -n1)
+          # The toolchain of the container, or the downloaded toolchain or SDK
+          TOOLCHAIN_DIRS=$(ls -d /external-toolchain "${{ env.TOOLCHAIN_NAME }}" 2>/dev/null || true)
+          if [ "${{ inputs.build_toolchain }}" != "true" ] && [ -n "$TOOLCHAIN_DIRS" ]; then
+            GCC=$(find $TOOLCHAIN_DIRS -name '*-openwrt-linux-*-gcc' \( -type f -o -type l \) 2>/dev/null | head -n1)
             if [ -n "$GCC" ]; then
               TOOLCHAIN_REV=$("$GCC" --version | head -n1 | grep -oE 'r[0-9]+-[0-9a-f]+' | sed 's/^r[0-9]*-//')
               git cat-file -e "$TOOLCHAIN_REV" 2>/dev/null && REV=$TOOLCHAIN_REV
@@ -678,6 +680,21 @@ jobs:
           echo "Using toolchain rev $REV -> last toolchain change $SHA ($TOOLCHAIN_NAME)"
 
           echo "compiler_check=string:$SHA:$TOOLCHAIN_NAME" >> $CCACHE_CONFIGPATH2
+          mkdir -p tmp
+          echo "$SHA:$TOOLCHAIN_NAME" > tmp/.ccache-toolchain-id
+
+        # The kernel stores the version string of the compiler as
+        # CONFIG_CC_VERSION_TEXT, which every object includes. The version
+        # string of an OpenWrt toolchain contains the revision it was built
+        # from, so a toolchain rebuilt from a newer revision would miss the
+        # whole kernel ccache. Give the kernel the toolchain name of
+        # compiler_check instead, which changes only with the compiler. A
+        # variable in MAKEFLAGS reaches every make call of the kernel.
+        # $GITHUB_ENV is not writable by buildbot, so export it here.
+      - name: Set kernel compiler version text
+        if: inputs.use_ccache_cache == true
+        working-directory: openwrt
+        run: echo "MAKEFLAGS=CC_VERSION_TEXT=$(cat tmp/.ccache-toolchain-id)" >> "$GITHUB_ENV"
 
       - name: Show configuration
         shell: su buildbot -c "sh -e {0}"
