@@ -1,0 +1,85 @@
+name: Set up the macOS build environment
+description: >
+  The case-sensitive volume and the Homebrew tools an OpenWrt host build needs
+  on macOS. The consumer of the published SDK parts runs the host tools built by
+  the producer, so both must set up the same environment, which is why this is
+  one definition rather than a copy in each workflow.
+
+  The volume is mounted at /Volumes/OpenWrt and the caller puts its build tree
+  under that path. The Homebrew tools go on PATH for the whole job, ahead of the
+  system ones, not only for the build steps.
+
+runs:
+  using: composite
+  steps:
+    - name: Set up case-sensitive build volume
+      shell: bash
+      run: |
+        # The image is sparse, so its size is nominal and the real ceiling is
+        # the free space of the volume backing it. Below that size df inside
+        # the volume reports space the build cannot have, which is the only
+        # thing this reports, not how much a build needs.
+        SIZE_GB=40
+        FREE=$(df -g "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')
+        echo "$FREE GiB free on the host for a ${SIZE_GB}g build volume"
+        if [ "$FREE" -lt "$SIZE_GB" ]; then
+          echo "::warning::The host has $FREE GiB free, less than the $SIZE_GB GiB the volume advertises, so a build that outgrows the host fails with no space left on device while df on the volume still shows space"
+        fi
+        hdiutil create -size "${SIZE_GB}g" -type SPARSE -fs "Case-sensitive APFS" -volname OpenWrt "$RUNNER_TEMP/OpenWrt.sparseimage"
+        hdiutil attach "$RUNNER_TEMP/OpenWrt.sparseimage"
+
+    - name: Install build dependencies
+      shell: bash
+      env:
+        # brew install otherwise updates itself, rebuilds dependents of the
+        # formulae the image preinstalls and cleans up, which costs minutes
+        HOMEBREW_NO_AUTO_UPDATE: 1
+        HOMEBREW_NO_INSTALL_CLEANUP: 1
+        HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: 1
+      run: |
+        # Formulary.loader_for tries FromAPILoader before any tap, so a bare
+        # name resolves from homebrew/core and a third-party tap cannot shadow
+        # it. Untapping would only uninstall the image's own tools.
+        brew install \
+          automake \
+          bash \
+          coreutils \
+          diffutils \
+          findutils \
+          gawk \
+          git-extras \
+          gnu-getopt \
+          gnu-sed \
+          gpatch \
+          grep \
+          gzip \
+          make \
+          ncurses \
+          pkg-config \
+          python-setuptools \
+          quilt \
+          swig \
+          wget
+
+        # fakeroot cannot preload into the arm64e system binaries, so ipkg-build
+        # has to find the Homebrew coreutils and gzip first
+        BREW_PREFIX="$(brew --prefix)"
+        for dir in \
+          "$BREW_PREFIX/bin" \
+          "$BREW_PREFIX/opt/coreutils/bin" \
+          "$BREW_PREFIX/opt/coreutils/libexec/gnubin" \
+          "$BREW_PREFIX/opt/findutils/libexec/gnubin" \
+          "$BREW_PREFIX/opt/gnu-getopt/bin" \
+          "$BREW_PREFIX/opt/gnu-sed/bin" \
+          "$BREW_PREFIX/opt/make/libexec/gnubin" \
+          "$BREW_PREFIX/opt/ncurses/bin" \
+          "$BREW_PREFIX/opt/gawk/libexec/gnubin"; do
+          echo "$dir" >> "$GITHUB_PATH"
+        done
+        {
+          echo "PKG_CONFIG_PATH=$BREW_PREFIX/opt/ncurses/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+          # kept for the steps that run brew later, such as the BPF toolchain
+          echo "HOMEBREW_NO_AUTO_UPDATE=1"
+          echo "HOMEBREW_NO_INSTALL_CLEANUP=1"
+          echo "HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1"
+        } >> "$GITHUB_ENV"
