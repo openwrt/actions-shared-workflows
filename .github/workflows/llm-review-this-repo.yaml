@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   pr-review:
-    if: github.event_name == 'pull_request_target' && github.repository_owner == 'openwrt'
+    if: github.event_name == 'pull_request_target' && github.repository_owner == 'openwrt' && vars.LLM_ROUTINE_ID_PR != ''
     permissions: {}
     uses: ./.github/workflows/reusable_llm-pr-review.yml
     with:
@@ -24,7 +24,7 @@ jobs:
       llm_routine_token: ${{ secrets.LLM_ROUTINE_TOKEN_PR }}
 
   nightly:
-    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.repository_owner == 'openwrt'
+    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.repository_owner == 'openwrt' && vars.LLM_ROUTINE_ID_NIGHTLY != ''
     permissions:
       pull-requests: read
     uses: ./.github/workflows/reusable_llm-nightly-digest.yml
