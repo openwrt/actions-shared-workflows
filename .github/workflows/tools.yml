@@ -46,7 +46,8 @@ jobs:
             swig
 
             echo "/bin" >> "$GITHUB_PATH"
-            echo "/sbin/Library/Apple/usr/bin" >> "$GITHUB_PATH"
+            echo "/sbin" >> "$GITHUB_PATH"
+            echo "/Library/Apple/usr/bin" >> "$GITHUB_PATH"
             echo "/usr/bin" >> "$GITHUB_PATH"
             echo "/opt/homebrew/bin" >> "$GITHUB_PATH"
             echo "/opt/homebrew/opt/coreutils/bin" >> "$GITHUB_PATH"
