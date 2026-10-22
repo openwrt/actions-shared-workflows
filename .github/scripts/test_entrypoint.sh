@@ -274,6 +274,10 @@ if is_opkg; then
 	opkg install $TEST_PACKAGES
 elif is_apk; then
 	echo "/ci/packages.adb" >> /etc/apk/repositories.d/distfeeds.list
+	# The local feed is not signed, so apk ignores it unless untrusted
+	# packages are allowed, and then installs dependencies of the tested
+	# packages from the online feeds instead.
+	echo "allow-untrusted" >> /etc/apk/config
 	apk update
 	apk add $TEST_PACKAGES
 fi
