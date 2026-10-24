@@ -1,0 +1,108 @@
+name: LLM Issue Triage
+
+on:
+  workflow_call:
+    inputs:
+      routine_id:
+        description: 'Claude routine ID (trig_...) for the issue triage routine'
+        required: true
+        type: string
+      max_issues:
+        description: 'Max issues to check in one session'
+        required: false
+        type: number
+        default: 16
+    secrets:
+      llm_routine_token:
+        description: 'Bearer token for the routine /fire endpoint'
+        required: true
+
+permissions:
+  issues: read
+
+jobs:
+  fire:
+    name: Fire LLM issue triage routine
+    runs-on: ubuntu-slim
+    steps:
+      - name: Pick issues to check
+        id: issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          MAX_ISSUES: ${{ inputs.max_issues }}
+        run: |
+          set -euo pipefail
+
+          # The issues endpoint also returns PRs; drop them.
+          gh api --paginate -X GET "repos/$REPO/issues" \
+            -f state=open -f sort=created -f direction=asc -f per_page=100 \
+            --jq '.[] | select(.pull_request == null) |
+              [.number, .created_at] | @tsv' > open.tsv
+          total=$(wc -l < open.tsv)
+          if [ "$total" -eq 0 ]; then
+            echo "No open issues; skipping routine fire."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Pull requests land as pushed commits, so "Fixes #N" in a PR
+          # description never closes the issue. Issues referenced by PRs
+          # whose commits landed in the last two days go first.
+          git clone -q --filter=blob:none --no-checkout --single-branch \
+            --shallow-since="3 days ago" "https://github.com/$REPO" repo
+          git -C repo log --since="2 days ago" --format=%B |
+            grep -oE "github.com/$REPO/pull/[0-9]+" | grep -oE '[0-9]+$' |
+            sort -u | while read -r pr; do
+              gh api "repos/$REPO/pulls/$pr" --jq '.body // ""' |
+                grep -oE '(#|issues/)[0-9]+' | grep -oE '[0-9]+' || true
+            done | sort -u > referenced
+          cut -f1 open.tsv | grep -xF -f referenced > first || true
+
+          # Then a window that moves by max_issues each day, so every issue
+          # comes up again once per full cycle.
+          day=$(( $(date +%s) / 86400 ))
+          start=$(( day * MAX_ISSUES % total ))
+          list=$({ cat first; tail -n +$((start + 1)) open.tsv | cut -f1
+            head -n "$start" open.tsv | cut -f1; } |
+            awk -v m="$MAX_ISSUES" '!seen[$0]++ && c++ < m' | paste -sd,)
+
+          # Issues opened since the previous nightly run get a duplicate check.
+          new=$(awk -F'\t' -v since="$(date -u -d '1 day ago' +%FT%TZ)" \
+            '$2 >= since {print $1}' open.tsv | paste -sd,)
+
+          {
+            echo "skip=false"
+            echo "issue_numbers=$list"
+            echo "new_issue_numbers=$new"
+          } >> "$GITHUB_OUTPUT"
+          echo "Referenced by landed PRs: $(paste -sd, first)"
+          echo "Will check $list of $total open issues; new: ${new:-none}"
+
+      - name: Trigger routine
+        if: steps.issues.outputs.skip != 'true'
+        env:
+          ROUTINE_ID: ${{ inputs.routine_id }}
+          ROUTINE_TOKEN: ${{ secrets.llm_routine_token }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBERS: ${{ steps.issues.outputs.issue_numbers }}
+          NEW_ISSUE_NUMBERS: ${{ steps.issues.outputs.new_issue_numbers }}
+        run: |
+          set -euo pipefail
+          PAYLOAD=$(jq -n \
+            --arg repo          "$REPO" \
+            --arg issue_numbers "$ISSUE_NUMBERS" \
+            --arg new_issue_numbers "$NEW_ISSUE_NUMBERS" \
+            '{text: ("mode=issue-triage\n"
+                   + "repo="              + $repo + "\n"
+                   + "issue_numbers="     + $issue_numbers + "\n"
+                   + "new_issue_numbers=" + $new_issue_numbers)}')
+          curl --fail --silent --show-error \
+            -X POST "https://api.anthropic.com/v1/claude_code/routines/${ROUTINE_ID}/fire" \
+            -H "Authorization: Bearer ${ROUTINE_TOKEN}" \
+            -H "anthropic-beta: experimental-cc-routine-2026-04-01" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            -o /dev/null
+          echo "Routine fired for ${REPO} with issues: ${ISSUE_NUMBERS}"

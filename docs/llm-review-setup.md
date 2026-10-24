@@ -21,11 +21,26 @@ Two routines per consumer repository:
   skips the API fire entirely when no PR has changed, so quiet nights cost
   nothing.
 
-Two reusable workflows live in this repository
+An optional third routine works through the issue backlog:
+
+- **Issue triage routine** — fired by an Actions cron. It first checks
+  open issues referenced by pull requests whose commits landed in the
+  last two days, since a "Fixes #N" in a PR description does not close
+  the issue when the commits are pushed, then a window of open issues
+  that moves each day. When a commit on the default branch fixes an
+  issue, it posts a short comment, signed with the model's name, that
+  names the commit and its backport state, and closes the issue as
+  completed. When only an open pull request fixes it, it links the pull
+  request once. Issues opened since the previous run get a duplicate
+  check that links up to three existing reports. It posts nothing when
+  it finds nothing. Closing needs the bot account's triage role.
+
+Three reusable workflows live in this repository
 (`openwrt/actions-shared-workflows`):
 
 - `.github/workflows/reusable_llm-pr-review.yml`
 - `.github/workflows/reusable_llm-nightly-digest.yml`
+- `.github/workflows/reusable_llm-issue-triage.yml`
 
 Each consumer repo (`openwrt`, `luci`, `netifd`, …) ships a thin
 `.github/workflows/llm-review.yml` wrapper that calls the reusable workflows.
@@ -37,6 +52,7 @@ this design:
 
 - 1 fire per opened/reopened PR
 - At most 1 fire per night (skipped when no PR has new commits)
+- 1 fire per night for issue triage, where enabled
 - Re-pushes do not fire — they are picked up by the next nightly digest
 
 Effective new-PR fires per day: cap minus 1 (for the nightly).
@@ -65,6 +81,8 @@ For each routine:
 2. **Prompt.** Copy the corresponding prompt from this repo:
    - `llm-review-prompts/llm-pr-review.md`
    - `llm-review-prompts/llm-nightly-digest.md`
+   - `llm-review-prompts/llm-issue-triage.md` (optional third routine,
+     `<repo>-llm-issue-triage`; written for and tested on Claude Sonnet 5.5)
 3. **Repository.** Attach only the consumer repo. Leave
    *Allow unrestricted branch pushes* OFF.
 4. **Connectors.** Trim to GitHub only. Disable Gmail, Drive, Calendar, etc.
@@ -85,6 +103,8 @@ In each consumer repo's *Settings → Secrets and variables → Actions*:
 | `LLM_ROUTINE_TOKEN_PR`        | secret   | Bearer token for the PR review routine |
 | `LLM_ROUTINE_ID_NIGHTLY`      | variable | `trig_...` ID of the nightly routine   |
 | `LLM_ROUTINE_TOKEN_NIGHTLY`   | secret   | Bearer token for the nightly routine   |
+| `LLM_ROUTINE_ID_ISSUES`       | variable | `trig_...` ID of the issue triage routine (optional) |
+| `LLM_ROUTINE_TOKEN_ISSUES`    | secret   | Bearer token for the issue triage routine (optional) |
 
 Then drop the consumer wrapper into the repo at
 `.github/workflows/llm-review.yml`. A template is in `openwrt/openwrt`'s
@@ -127,6 +147,16 @@ jobs:
       # extra_repos: gregkh/linux:v6.18.21
     secrets:
       llm_routine_token: ${{ secrets.LLM_ROUTINE_TOKEN_NIGHTLY }}
+
+  issue-triage:
+    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.repository_owner == 'openwrt' && vars.LLM_ROUTINE_ID_ISSUES != ''
+    permissions:
+      issues: read
+    uses: openwrt/actions-shared-workflows/.github/workflows/reusable_llm-issue-triage.yml@main
+    with:
+      routine_id: ${{ vars.LLM_ROUTINE_ID_ISSUES }}
+    secrets:
+      llm_routine_token: ${{ secrets.LLM_ROUTINE_TOKEN_ISSUES }}
 ```
 
 ## Per-repo project rules (optional)
@@ -147,6 +177,7 @@ Reusable workflow inputs:
 | `extra_repos` | `''`             | Comma-separated entries, each either `owner/name:ref` or a full `http(s)://host/path[.git]:ref` (e.g. `gregkh/linux:v6.18.21,https://thekelleys.org.uk/git/dnsmasq.git:master`). The ref is required and is checked out as a shallow clone. The routine inspects the PR and only consults the entries it actually needs. |
 | `max_prs`     | `16` (nightly)   | Upper bound on PRs per nightly session.                                                  |
 | `bot_user`    | `openwrt-ai`     | Nightly digest only. Used to identify the bot's own previous reviews.                    |
+| `max_issues`  | `16`             | Issue triage only. Open issues checked per session.                                      |
 
 `extra_repos` is a *list of repos the routine may clone if relevant*.
 Each entry takes one of two forms:
