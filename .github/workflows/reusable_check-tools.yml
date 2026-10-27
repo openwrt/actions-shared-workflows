@@ -39,12 +39,17 @@ jobs:
       # will refresh the tools container with the matching tag.
       # (example branch openwrt-22.03 -> tools:openwrt-22.03)
       # (example branch openwrt-22.03-test -> tools:openwrt-22.03)
+      # A pull request uses the container of its target branch.
       - name: Determine tools container tag
         id: determine-container-tag
         run: |
           CONTAINER_TAG=latest
 
-          if [ ${{ github.ref_type }} == "branch" ]; then
+          if [ -n "${{ github.base_ref }}" ]; then
+            if echo "${{ github.base_ref }}" | grep -q -E '^openwrt-[0-9][0-9]\.[0-9][0-9]$'; then
+              CONTAINER_TAG="${{ github.base_ref }}"
+            fi
+          elif [ ${{ github.ref_type }} == "branch" ]; then
             if echo "${{ github.ref_name }}" | grep -q -E 'openwrt-[0-9][0-9]\.[0-9][0-9]'; then
               CONTAINER_TAG="$(echo ${{ github.ref_name }} | sed 's/^\(openwrt-[0-9][0-9]\.[0-9][0-9]\).*/\1/')"
             fi
