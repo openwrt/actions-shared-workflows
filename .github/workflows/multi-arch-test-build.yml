@@ -203,8 +203,8 @@ jobs:
         if: ${{ matrix.runtime_test && fromJSON(env.HAVE_PKGS) }}
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-user-static binfmt-support
-          sudo update-binfmts --import
+          sudo apt-get install -y qemu-user-binfmt
+          sudo systemctl restart systemd-binfmt
 
       - name: Checkout test scripts
         if: ${{ matrix.runtime_test && fromJSON(env.HAVE_PKGS) }}
