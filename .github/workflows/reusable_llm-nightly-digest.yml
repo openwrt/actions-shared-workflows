@@ -100,6 +100,12 @@ jobs:
           PR_NUMBERS: ${{ steps.prs.outputs.pr_numbers }}
         run: |
           set -euo pipefail
+          # required: true only makes the key mandatory, not its value, and an
+          # empty one builds .../routines//fire, which answers 404
+          if [ -z "$ROUTINE_ID" ]; then
+            echo "::error::routine_id is empty, set the routine ID variable in the calling workflow"
+            exit 1
+          fi
           PAYLOAD=$(jq -n \
             --arg repo        "$REPO" \
             --arg pr_numbers  "$PR_NUMBERS" \
