@@ -38,4 +38,6 @@ jobs:
           FILENAME: ${{ inputs.filename }}
         run: |
           aws configure set default.s3.addressing_style path
+          aws configure set default.s3.multipart_threshold 256MiB
+          aws configure set default.s3.multipart_chunksize 256MiB
           aws s3 cp "$FILENAME" "s3://$S3_BUCKET/" --endpoint-url "$S3_ENDPOINT" --no-progress
