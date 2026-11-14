@@ -1,0 +1,119 @@
+name: SDK Package Build
+
+on:
+  workflow_call:
+    inputs:
+      package:
+        description: 'Source package of the calling project in the feed, e.g. odhcpd'
+        required: true
+        type: string
+      packages:
+        description: 'Binary packages to build, space separated. Defaults to the source package.'
+        required: false
+        type: string
+        default: ''
+      feed:
+        description: 'Feed providing the source package'
+        required: false
+        type: string
+        default: 'base'
+      archs:
+        description: 'JSON array of SDK architectures'
+        required: false
+        type: string
+        default: >-
+          [
+            "x86_64",
+            "i386_pentium4",
+            "aarch64_generic",
+            "arm_cortex-a15_neon-vfpv4",
+            "mips_24kc",
+            "mipsel_24kc",
+            "powerpc_8548",
+            "riscv64_generic"
+          ]
+      sdk_branch:
+        description: 'OpenWrt branch of the SDK containers'
+        required: false
+        type: string
+        default: 'master'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ${{ fromJSON(inputs.archs) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          path: source
+
+      - name: Checkout build script
+        uses: actions/checkout@v7
+        with:
+          repository: openwrt/actions-shared-workflows
+          path: workflow_context
+          sparse-checkout: |
+            .github/scripts/sdk_package_build.sh
+          sparse-checkout-cone-mode: false
+
+      - name: Build
+        env:
+          ARTIFACTS: ${{ runner.temp }}/artifacts
+          FEED: ${{ inputs.feed }}
+          PACKAGE: ${{ inputs.package }}
+          PACKAGES: ${{ inputs.packages }}
+          SDK: ghcr.io/openwrt/sdk:${{ matrix.arch }}-${{ inputs.sdk_branch }}
+        run: |
+          mkdir -p "$ARTIFACTS"
+          sudo chown -R 1000:1000 "$GITHUB_WORKSPACE/source" "$ARTIFACTS"
+          docker run --rm \
+            --env FEED \
+            --env PACKAGE \
+            --env PACKAGES \
+            --volume "$GITHUB_WORKSPACE/source:/src" \
+            --volume "$GITHUB_WORKSPACE/workflow_context/.github/scripts:/ci:ro" \
+            --volume "$ARTIFACTS:/artifacts" \
+            "$SDK" \
+            /ci/sdk_package_build.sh
+
+      - name: Restore ownership
+        if: always()
+        env:
+          ARTIFACTS: ${{ runner.temp }}/artifacts
+        run: sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE/source" "$ARTIFACTS"
+
+      - name: Sizes
+        env:
+          ARCH: ${{ matrix.arch }}
+          ARTIFACTS: ${{ runner.temp }}/artifacts
+        run: |
+          {
+            echo "### $ARCH"
+            echo "| package | apk size |"
+            echo "| :--- | ---: |"
+            awk '{ printf "| %s | %s |\n", $1, $2 }' "$ARTIFACTS/sizes.txt"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: packages-${{ matrix.arch }}
+          path: ${{ runner.temp }}/artifacts/apk/
+          if-no-files-found: error
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: logs-${{ matrix.arch }}
+          path: ${{ runner.temp }}/artifacts/logs/
+          if-no-files-found: ignore
