@@ -578,7 +578,9 @@ jobs:
       - name: Test via Docker container
         if: ${{ fromJSON(env.HAVE_PKGS) }}
         run: |
+          PACKAGES=$(sed -n '/^$/q; s/^Summary: //p' PKG-INFO)
           docker run \
+            -e "PACKAGES=$PACKAGES" \
             -e ENABLE_GENERIC_TESTS=${{ inputs.enable_generic_tests }} \
             -e FORCE_GENERIC_TESTS=${{ inputs.force_generic_tests }} \
             -e PKG_MANAGER=${{ env.PKG_MANAGER }} \

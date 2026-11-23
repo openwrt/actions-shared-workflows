@@ -235,6 +235,7 @@ jobs:
         if: ${{ matrix.runtime_test && fromJSON(env.HAVE_PKGS) }}
         run: |
           docker run \
+            -e PACKAGES \
             -e ENABLE_GENERIC_TESTS=${{ inputs.enable_generic_tests }} \
             -e FORCE_GENERIC_TESTS=${{ inputs.force_generic_tests }} \
             -e PKG_MANAGER=${{ env.PKG_MANAGER }} \
