@@ -301,7 +301,6 @@ for PKG in /ci/*.[ai]pk; do
 		PKG_VERSION="${PKG_VERSION%-[!-]*}"
 		# package source containing test.sh script
 		PKG_SOURCE=$(sed -ne 's#^Source: \(.*\)$#\1#p' ./control)
-		PKG_SOURCE="${PKG_SOURCE#/feed/}"
 	elif is_apk; then
 		# package name including variant
 		PKG_NAME=$(apk adbdump --format json "$PKG" | jsonfilter -e '@["info"]["name"]')
@@ -310,7 +309,20 @@ for PKG in /ci/*.[ai]pk; do
 		PKG_VERSION="${PKG_VERSION%-[!-]*}"
 		# package source containing test.sh script
 		PKG_SOURCE=$(apk adbdump --format json "$PKG" | jsonfilter -e '@["info"]["origin"]')
-		PKG_SOURCE="${PKG_SOURCE#/feed/}"
+	fi
+	PKG_SOURCE="${PKG_SOURCE#/feed/}"
+
+	# PACKAGES lists source directory names. Split packages share that
+	# directory even when their binary package names differ.
+	if [ -n "${PACKAGES:-}" ]; then
+		[ -n "$PKG_SOURCE" ] || err_die "Missing source directory in $PKG"
+		case " $PACKAGES " in
+			*" ${PKG_SOURCE##*/} "*) ;;
+			*)
+				status_skip "Unselected source $PKG_SOURCE"
+				continue
+				;;
+		esac
 	fi
 
 	echo

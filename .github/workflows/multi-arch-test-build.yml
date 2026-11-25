@@ -74,11 +74,11 @@ jobs:
 
       - name: Determine changed packages
         run: |
-          # only detect packages with changes
+          # Match both sides of a rename against surviving package roots.
           PKG_ROOTS=$(find . -name Makefile | \
             grep -v ".*/src/Makefile" | \
             sed -e 's@./\(.*\)/Makefile@\1/@')
-          CHANGES=$(git diff --diff-filter=d --name-only origin/$BRANCH...)
+          CHANGES=$(git diff --no-renames --name-only "origin/$BRANCH"...)
 
           for ROOT in $PKG_ROOTS; do
             for CHANGE in $CHANGES; do
@@ -235,6 +235,7 @@ jobs:
         if: ${{ matrix.runtime_test && fromJSON(env.HAVE_PKGS) }}
         run: |
           docker run \
+            -e PACKAGES \
             -e ENABLE_GENERIC_TESTS=${{ inputs.enable_generic_tests }} \
             -e FORCE_GENERIC_TESTS=${{ inputs.force_generic_tests }} \
             -e PKG_MANAGER=${{ env.PKG_MANAGER }} \
