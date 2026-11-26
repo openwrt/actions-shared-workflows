@@ -37,6 +37,12 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           set -euo pipefail
+          # required: true only makes the key mandatory, not its value, and an
+          # empty one builds .../routines//fire, which answers 404
+          if [ -z "$ROUTINE_ID" ]; then
+            echo "::error::routine_id is empty, set the routine ID variable in the calling workflow"
+            exit 1
+          fi
           # Strip CR/LF — these would split into fake key=value lines on the
           # routine side and could overwrite earlier keys (e.g. base_repo).
           PR_TITLE=$(printf %s "$PR_TITLE" | tr -d '\r\n')
